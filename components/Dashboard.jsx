@@ -1,2658 +1,1056 @@
 'use client'
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import CreativeModal, { useCreatives } from "./CreativeModal";
 import MetaSettings from "./MetaSettings";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 팔레트
+// 팔레트 — 아이폰/토스 감성
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const C = {
-  rose:"#E8567A", roseLt:"#F2849E", blush:"#FCE8EE",
-  cream:"#FEF8F4", gold:"#C9924A", goldLt:"#F6E8D0",
-  sage:"#6BAA88", sageLt:"#E4F2EA",
-  ink:"#2B1F2E", inkMid:"#6B576F", inkLt:"#B09CB5",
-  white:"#FFFFFF", border:"#EDE0E8",
-  good:"#4DAD7A", warn:"#E8A020", bad:"#E84B4B",
-  purple:"#9B6FC7", purpleLt:"#F0E8FA",
+  bg:       "#F5F5F7",
+  white:    "#FFFFFF",
+  border:   "#E5E5EA",
+  ink:      "#1C1C1E",
+  inkMid:   "#3A3A3C",
+  inkLt:    "#8E8E93",
+  accent:   "#007AFF",
+  accentLt: "#E8F2FF",
+  good:     "#34C759",
+  goodLt:   "#E8F8ED",
+  warn:     "#FF9500",
+  warnLt:   "#FFF4E5",
+  bad:      "#FF3B30",
+  badLt:    "#FFEEEE",
+  blue:     "#5AC8FA",
+  blueLt:   "#EAF7FD",
+  purple:   "#AF52DE",
+  purpleLt: "#F5EAFD",
 };
 
+const FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Noto Sans KR', 'Helvetica Neue', sans-serif";
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 기본 로컬 데이터
+// 기본값
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const DEFAULT_INF = [];
-// 기본 키워드별 마진 설정
 const DEFAULT_MARGINS = [
-  {id:1, keyword:"프리온",   margin:20000},
-  {id:2, keyword:"소닉플로우", margin:35000},
+  { id: 1, keyword: "프리온",    margin: 20000 },
+  { id: 2, keyword: "소닉플로우", margin: 35000 },
 ];
-
-const DEFAULT_INV = [
-  {id:1,name:"세럼 30ml (베스트셀러)",sku:"SKU-001",stock:1240,ordered:0,  reorder:500,sold30:920, category:"세럼"},
-  {id:2,name:"세럼 50ml",            sku:"SKU-002",stock:340, ordered:500, reorder:400,sold30:510, category:"세럼"},
-  {id:3,name:"선크림 SPF50 50ml",    sku:"SKU-003",stock:2140,ordered:0,  reorder:600,sold30:840, category:"선케어"},
-  {id:4,name:"토너 패드 60매",        sku:"SKU-004",stock:88,  ordered:300, reorder:300,sold30:420, category:"토너"},
-  {id:5,name:"립밤 세트 (3종)",       sku:"SKU-005",stock:640, ordered:0,  reorder:200,sold30:280, category:"립"},
-  {id:6,name:"클렌징 폼 150ml",       sku:"SKU-006",stock:1820,ordered:0,  reorder:500,sold30:640, category:"클렌저"},
-  {id:7,name:"아이크림 15ml",         sku:"SKU-007",stock:210, ordered:250, reorder:250,sold30:310, category:"아이케어"},
-];
-const DEFAULT_SCH = [
-  {id:1,type:"공구",   title:"세럼 30ml 공구 오픈",     date:"2025-03-10",endDate:"2025-03-12",platform:"네이버 스마트스토어",note:"한정 200개, 20% 할인",status:"예정"},
-  {id:2,type:"시딩",   title:"@glowwith_miso 2차 시딩", date:"2025-03-15",endDate:"",          platform:"인스타그램",          note:"세럼 50ml 신제품",   status:"예정"},
-  {id:3,type:"광고",   title:"선크림 봄 캠페인 론칭",    date:"2025-03-20",endDate:"2025-04-20",platform:"Meta 전환",           note:"예산 ₩3,000K",      status:"예정"},
-  {id:4,type:"이벤트", title:"봄 기획전",               date:"2025-03-22",endDate:"2025-03-25",platform:"전 채널",             note:"선물세트 패키지",    status:"준비중"},
-  {id:5,type:"공구",   title:"립밤 세트 공동구매",       date:"2025-02-20",endDate:"2025-02-22",platform:"카카오 쇼핑",         note:"완료",              status:"완료"},
-];
-// 구글 시트 URL 저장 키
-const LS_SHEET_URL = "oa_sheet_url";
-const LS_INF       = "oa_inf_v7";
-const LS_INV       = "oa_inv_v7";
-const LS_SCH       = "oa_sch_v7";
-const LS_MARGIN    = "oa_margin_v7"; // 마진 설정
-const LS_MARGINS   = "oa_margins_v7"; // 키워드별 마진
-const LS_ORDER_URL = "oa_order_url_v7"; // 발주임박 시트 URL
-const LS_INV_URL   = "oa_inv_url_v7";   // 재고원본 시트 URL
-const LS_INF_URL   = "oa_inf_url_v7";   // 인플루언서 시트 URL
-const LS_CRITERIA  = "oa_ad_criteria_v1";
 const DEFAULT_CRITERIA = {
-  lpv_great:300, lpv_keep:500, lpv_hold:800,
-  ctr_good:2.0, ctr_normal:1.0,
-  lpvr_good:70, lpvr_normal:50,
-  cpa_keep:85, cpa_hold:100,
-  roas_great:3.0, roas_keep:2.0, roas_hold:1.0, use_roas:false,
+  lpv_great: 300, lpv_keep: 500, lpv_hold: 800,
+  ctr_good: 2.0, ctr_normal: 1.0,
+  lpvr_good: 70, lpvr_normal: 50,
+  cpa_keep: 85, cpa_hold: 100,
+  roas_great: 3.0, roas_keep: 2.0, roas_hold: 1.0, use_roas: false,
 };
+
+const LS_SHEET_URL = "oa_sheet_url";
+const LS_MARGIN    = "oa_margin_v7";
+const LS_MARGINS   = "oa_margins_v7";
+const LS_CRITERIA  = "oa_ad_criteria_v1";
+const LS_LOGO      = "oa_logo_v1";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 유틸
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TODAY: 모듈 레벨에서 한 번만 계산 (서버/클라이언트 동일)
-const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-const todayStr = "오늘"; // 하이드레이션 불일치 방지 — 날짜는 컴포넌트에서 표시
-
-function addDays(ds,n){ if(!ds)return null; const d=new Date(ds); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
-function daysUntil(ds){ if(!ds)return null; return Math.ceil((new Date(ds)-TODAY)/86400000); }
-function insightStatus(f){
-  if(!f.postedDate) return {label:"미게시",  color:C.inkLt,bg:C.cream,   icon:"📦"};
-  if(f.reach!==null) return {label:"기록완료",color:C.good, bg:"#EDF7F1", icon:"✅"};
-  const due=addDays(f.postedDate,7), d=daysUntil(due);
-  if(d>0)   return {label:`D-${d} 대기`,         color:C.inkLt,bg:C.cream,  icon:"⏳"};
-  if(d===0) return {label:"오늘 입력!",           color:C.rose, bg:C.blush,  icon:"🔔"};
-  return         {label:`D+${Math.abs(d)} 미입력`,color:C.bad,  bg:"#FEF0F0",icon:"❗"};
-}
-function stockDays(i){ return Math.round(i.stock/Math.max(i.sold30/30,0.01)); }
-function stockStatus(i){
-  const d=stockDays(i);
-  if(d<7)  return {label:"위험",color:C.bad, bg:"#FEF0F0"};
-  if(d<21) return {label:"주의",color:C.warn,bg:"#FFF8EC"};
-  return        {label:"정상",color:C.good,bg:"#EDF7F1"};
-}
-// 2차 활용 만료일 계산 (게시일+3개월)
-function reusableExpiry(postedDate){
-  if(!postedDate) return null;
-  const d = new Date(postedDate);
-  d.setMonth(d.getMonth()+3);
-  return d.toISOString().slice(0,10);
-}
-function reusableStatus(f){
-  if(!f.videoReceived) return {label:"미수령",color:C.inkLt,bg:C.cream};
-  if(!f.reusable)      return {label:"활용불가",color:C.bad,bg:"#FEF0F0"};
-  const exp = reusableExpiry(f.postedDate);
-  if(!exp) return {label:"활용가능",color:C.good,bg:"#EDF7F1"};
-  const d = daysUntil(exp);
-  if(d<0)  return {label:"만료",color:C.inkLt,bg:C.cream};
-  if(d<=14) return {label:`D-${d} 만료임박`,color:C.warn,bg:"#FFF8EC"};
-  return {label:`~${exp.slice(5)} 활용가능`,color:C.good,bg:"#EDF7F1"};
-}
-// ── 광고 소재 판단 기준 (criteria 기반) ─────────────────────────
-// criteria는 컴포넌트 안에서 주입됨 — 전역 함수는 기본값 사용
-function lpvCostStatus(spend, lpv, cr=DEFAULT_CRITERIA){
-  if(!lpv||!spend) return null;
-  const cost = spend/lpv;
-  if(cost<cr.lpv_great) return {label:"매우좋음", color:C.good, bg:"#EDF7F1", icon:"🟢", cost:Math.round(cost)};
-  if(cost<cr.lpv_keep)  return {label:"유지",     color:C.sage, bg:C.sageLt,  icon:"🔵", cost:Math.round(cost)};
-  if(cost<cr.lpv_hold)  return {label:"보류",     color:C.warn, bg:"#FFF8EC", icon:"🟡", cost:Math.round(cost)};
-  return                       {label:"컷",        color:C.bad,  bg:"#FEF0F0", icon:"🔴", cost:Math.round(cost)};
-}
-function lpvRateStatus(clicks, lpv, cr=DEFAULT_CRITERIA){
-  if(!clicks||!lpv) return null;
-  const rate = (lpv/clicks)*100;
-  if(rate>=cr.lpvr_good)   return {label:"정상",    color:C.good, bg:"#EDF7F1", icon:"✅", rate:rate.toFixed(1)};
-  if(rate>=cr.lpvr_normal) return {label:"보통",    color:C.warn, bg:"#FFF8EC", icon:"⚠️", rate:rate.toFixed(1)};
-  return                          {label:"랜딩문제", color:C.bad,  bg:"#FEF0F0", icon:"🚨", rate:rate.toFixed(1)};
-}
-function cpaStatus(spend, purchases, margin, cr=DEFAULT_CRITERIA){
-  if(!purchases||!spend||!margin) return null;
-  const cpa = spend/purchases;
-  const ratio = (cpa/margin)*100;
-  if(ratio<=cr.cpa_keep) return {label:"유지", color:C.good, bg:"#EDF7F1", icon:"✅", cpa:Math.round(cpa)};
-  if(ratio<=cr.cpa_hold) return {label:"보류", color:C.warn, bg:"#FFF8EC", icon:"⚠️", cpa:Math.round(cpa)};
-  return                        {label:"컷",   color:C.bad,  bg:"#FEF0F0", icon:"🔴", cpa:Math.round(cpa)};
-}
-function ctrStatus(clicks, impressions, cr=DEFAULT_CRITERIA){
-  if(!impressions||!clicks) return null;
-  const ctr = (clicks/impressions)*100;
-  if(ctr>=cr.ctr_good)   return {label:"좋음",    color:C.good, bg:"#EDF7F1", icon:"🟢", ctr:ctr.toFixed(2)};
-  if(ctr>=cr.ctr_normal) return {label:"보통",    color:C.warn, bg:"#FFF8EC", icon:"🟡", ctr:ctr.toFixed(2)};
-  return                        {label:"소재문제", color:C.bad,  bg:"#FEF0F0", icon:"🔴", ctr:ctr.toFixed(2)};
-}
-function roasStatus(convValue, spend, cr=DEFAULT_CRITERIA){
-  if(!convValue||!spend) return null;
-  const roas = convValue/spend;
-  if(roas>=cr.roas_great) return {label:"매우좋음", color:C.good, bg:"#EDF7F1", icon:"🟢", roas:roas.toFixed(2)};
-  if(roas>=cr.roas_keep)  return {label:"유지",     color:C.sage, bg:C.sageLt,  icon:"🔵", roas:roas.toFixed(2)};
-  if(roas>=cr.roas_hold)  return {label:"보류",     color:C.warn, bg:"#FFF8EC", icon:"🟡", roas:roas.toFixed(2)};
-  return                         {label:"컷",        color:C.bad,  bg:"#FEF0F0", icon:"🔴", roas:roas.toFixed(2)};
-}
-// 광고명/캠페인명에서 키워드 마진 찾기
-function getAdMargin(adName, campaignName, margins, defaultMargin){
-  const text = (adName + " " + campaignName).toLowerCase();
-  const matched = (margins||[]).find(m => m.keyword && text.includes(m.keyword.toLowerCase()));
-  return matched ? matched.margin : defaultMargin;
-}
-
-function adScore(ad, margin, cr=DEFAULT_CRITERIA){
-  const issues = [];
-  const lpvC = lpvCostStatus(ad.spend, ad.lpv, cr);
-  const lpvR = lpvRateStatus(ad.clicks, ad.lpv, cr);
-  const ctr  = ctrStatus(ad.clicks||ad.clicksAll, ad.impressions, cr);
-  const convJudge = cr.use_roas
-    ? roasStatus(ad.convValue, ad.spend, cr)
-    : cpaStatus(ad.spend, ad.purchases, margin, cr);
-  if(lpvC&&(lpvC.label==="컷"||lpvC.label==="보류"))         issues.push({type:"LPV단가",  ...lpvC});
-  if(lpvR&&(lpvR.label==="랜딩문제"))                        issues.push({type:"LPV전환율",...lpvR});
-  if(convJudge&&(convJudge.label==="컷"||convJudge.label==="보류")) issues.push({type:cr.use_roas?"ROAS":"CPA",...convJudge});
-  if(ctr &&(ctr.label==="소재문제"||ctr.label==="보통"))      issues.push({type:"CTR",      ...ctr});
-  return {issues, lpvC, lpvR, cpa:convJudge, ctr};
-}
-
-function schTypeColor(t){ return {공구:C.rose,시딩:C.purple,광고:C.gold,이벤트:C.sage}[t]||C.inkMid; }
-function schTypeIcon(t){  return {공구:"🛍",시딩:"✨",광고:"📣",이벤트:"🎉"}[t]||"📌"; }
-
-// localStorage 훅 — SSR/CSR 완전 분리 버전
-// 서버: 항상 def 반환, 클라이언트: localStorage 값 반환
-// useState 초기화 시점에 localStorage 읽어서 하이드레이션 불일치 원천 차단
-function useLocal(key, def){
+function useLocal(key, def) {
   const [data, setData] = useState(def);
   const [loaded, setLoaded] = useState(false);
-
-  // 마운트 후 딱 한 번만 localStorage에서 읽기
-  const isFirst = useCallback(()=>{}, []);
-  useEffect(()=>{
+  useEffect(() => {
     let stored = def;
-    try{
+    try {
       const raw = localStorage.getItem(key);
-      if(raw !== null) stored = JSON.parse(raw);
-    }catch{}
-    // 서버 렌더값(def)과 다를 때만 업데이트 → 불일치 최소화
+      if (raw !== null) stored = JSON.parse(raw);
+    } catch {}
     setData(stored);
     setLoaded(true);
-  // eslint-disable-next-line
   }, []);
-
-  const save = useCallback((v)=>{
+  const save = useCallback((v) => {
     setData(v);
-    try{ localStorage.setItem(key, JSON.stringify(v)); }catch{}
+    try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
   }, [key]);
-
   return [data, save, loaded];
 }
 
-// CSV 파싱 (구글 시트 export) — 타이틀 행 자동 스킵
-function parseCSV(text){
-  const lines = text.trim().split("\n").map(l=>{
-    // 쉼표가 큰따옴표 안에 있는 경우 처리
-    const res=[]; let cur="", inQ=false;
-    for(let i=0;i<l.length;i++){
-      if(l[i]==='"'){inQ=!inQ;}
-      else if(l[i]===","&&!inQ){res.push(cur.trim());cur="";}
-      else cur+=l[i];
+function parseCSV(text) {
+  const lines = text.trim().split("\n").map(l => {
+    const res = []; let cur = "", inQ = false;
+    for (let i = 0; i < l.length; i++) {
+      if (l[i] === '"') { inQ = !inQ; }
+      else if (l[i] === "," && !inQ) { res.push(cur.trim()); cur = ""; }
+      else cur += l[i];
     }
     res.push(cur.trim());
     return res;
   });
-  if(lines.length<2) return [];
-  // 첫 행이 실제 헤더인지 확인
-  const HEADER_HINTS = ["캠페인","campaign","날짜","date","일","광고","지출","노출","impressions","spend"];
+  if (lines.length < 2) return [];
+  const HINTS = ["캠페인", "campaign", "날짜", "date", "일", "광고", "지출", "노출", "impressions", "spend"];
   const firstRowStr = lines[0].join(",").toLowerCase();
-  const startIdx = HEADER_HINTS.some(h=>firstRowStr.includes(h)) ? 0 : 1;
-  // 헤더: 원본 텍스트 그대로 보존 (매핑에서 직접 비교)
-  const headers = lines[startIdx].map(h=>h.trim());
-  return lines.slice(startIdx+1).filter(l=>l.some(c=>c)).map(row=>{
-    const obj={};
-    headers.forEach((h,i)=>{ if(h) obj[h]=row[i]||""; });
+  const startIdx = HINTS.some(h => firstRowStr.includes(h)) ? 0 : 1;
+  const headers = lines[startIdx].map(h => h.trim());
+  return lines.slice(startIdx + 1).filter(l => l.some(c => c)).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { if (h) obj[h] = row[i] || ""; });
     return obj;
   });
 }
 
-// 메타 컬럼 매핑 — 실제 광고관리자 내보내기 기준
-function mapMetaRow(row){
-  // 원본 컬럼명 그대로 접근하는 헬퍼
-  const g=(...keys)=>{
-    for(const k of keys){
-      if(row[k]!==undefined&&row[k]!==null&&row[k]!=="") return row[k];
+function mapMetaRow(row) {
+  const g = (...keys) => {
+    for (const k of keys) {
+      if (row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
     }
     return "";
   };
-  const num=v=>{
-    if(v===null||v===undefined||v==="") return 0;
-    const n=parseFloat(String(v).replace(/,/g,"").replace(/[^0-9.-]/g,""));
-    return isNaN(n)?0:n;
+  const num = v => {
+    if (!v) return 0;
+    const n = parseFloat(String(v).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+    return isNaN(n) ? 0 : n;
   };
-
   return {
-    date:       g("일","날짜","보고 시작","date"),
-    campaign:   g("캠페인 이름","campaign_name","campaign"),
-    adset:      g("광고 세트 이름","adset_name"),
-    adName:     g("광고 이름","ad_name"),
-    // 목표: OUTCOME_SALES / LINK_CLICKS 등 — 전환/트래픽 분류 핵심
-    objective:  g("목표","목적","objective"),
-    resultType: g("결과 유형","result_type"),
-    spend:      num(g("지출 금액 (KRW)","지출 금액","amount_spent","spend")),
-    impressions:num(g("노출","impressions")),
-    clicks:     num(g("링크 클릭","link_clicks")),
-    clicksAll:  num(g("클릭(전체)","clicks")),
-    lpv:        num(g("랜딩 페이지 조회","landing_page_views")),
-    purchases:  num(g("공유 항목이 포함된 구매","결과","purchases","result")),
-    cart:       num(g("공유 항목이 포함된 장바구니에 담기","add_to_cart")),
-    convValue:  num(g("공유 항목의 구매 전환값","공유 항목의 웹사이트 구매 전환값","conversion_value")),
-    cpc:        num(g("CPC(링크 클릭당 비용)","cpc")),
-    cpcAll:     num(g("CPC(전체)")),
-    ctr:        num(g("CTR(전체)","ctr")),
-    cpa:        num(g("결과당 비용","cost_per_result","cpa")),
-    cpm:        num(g("CPM(1,000회 노출당 비용)","cpm")),
+    date:        g("일", "날짜", "보고 시작", "date"),
+    campaign:    g("캠페인 이름", "campaign_name", "campaign"),
+    adset:       g("광고 세트 이름", "adset_name"),
+    adName:      g("광고 이름", "ad_name"),
+    objective:   g("목표", "목적", "objective"),
+    spend:       num(g("지출 금액 (KRW)", "지출 금액", "amount_spent", "spend")),
+    impressions: num(g("노출", "impressions")),
+    clicks:      num(g("링크 클릭", "link_clicks")),
+    clicksAll:   num(g("클릭(전체)", "clicks")),
+    lpv:         num(g("랜딩 페이지 조회", "landing_page_views")),
+    purchases:   num(g("공유 항목이 포함된 구매", "결과", "purchases", "result")),
+    convValue:   num(g("공유 항목의 구매 전환값", "conversion_value")),
+    cpc:         num(g("CPC(링크 클릭당 비용)", "cpc")),
+    ctr:         num(g("CTR(전체)", "ctr")),
+    cpm:         num(g("CPM(1,000회 노출당 비용)", "cpm")),
   };
 }
 
-// 전환/트래픽 분류 — 목표 컬럼 우선, 그 다음 캠페인명
-function isConversionCampaign(objective, campaignName=""){
-  const obj = (objective||"").toUpperCase();
-  // 목표 컬럼으로 정확히 분류 (OUTCOME_SALES / LINK_CLICKS)
-  if(obj==="OUTCOME_SALES"||obj==="OUTCOME_ENGAGEMENT"||obj==="CONVERSIONS") return true;
-  if(obj==="LINK_CLICKS"||obj==="OUTCOME_TRAFFIC"||obj==="REACH"||obj==="BRAND_AWARENESS") return false;
-  // 목표가 없을 때 캠페인명으로 fallback
-  const name=(campaignName||"").toLowerCase();
-  if(["전환","conversion","purchase","구매","sales"].some(k=>name.includes(k))) return true;
-  if(["트래픽","traffic","클릭","link_click"].some(k=>name.includes(k))) return false;
+function isConvCamp(objective, campaignName = "") {
+  const obj = (objective || "").toUpperCase();
+  if (["OUTCOME_SALES", "OUTCOME_ENGAGEMENT", "CONVERSIONS"].includes(obj)) return true;
+  if (["LINK_CLICKS", "OUTCOME_TRAFFIC", "REACH", "BRAND_AWARENESS"].includes(obj)) return false;
+  const name = (campaignName || "").toLowerCase();
+  if (["전환", "conversion", "purchase", "구매", "sales"].some(k => name.includes(k))) return true;
+  if (["트래픽", "traffic", "클릭", "link_click"].some(k => name.includes(k))) return false;
   return false;
 }
 
+function getAdMargin(adName, campaign, margins, def) {
+  const text = (adName + " " + campaign).toLowerCase();
+  const m = (margins || []).find(m => m.keyword && text.includes(m.keyword.toLowerCase()));
+  return m ? m.margin : def;
+}
+
+function lpvCostStatus(spend, lpv, cr = DEFAULT_CRITERIA) {
+  if (!lpv || !spend) return null;
+  const cost = spend / lpv;
+  if (cost < cr.lpv_great) return { label: "매우좋음", color: C.good, bg: C.goodLt, cost: Math.round(cost) };
+  if (cost < cr.lpv_keep)  return { label: "유지",     color: C.accent, bg: C.accentLt, cost: Math.round(cost) };
+  if (cost < cr.lpv_hold)  return { label: "보류",     color: C.warn, bg: C.warnLt, cost: Math.round(cost) };
+  return                          { label: "컷",        color: C.bad,  bg: C.badLt,  cost: Math.round(cost) };
+}
+function ctrStatus(clicks, impressions, cr = DEFAULT_CRITERIA) {
+  if (!impressions || !clicks) return null;
+  const ctr = (clicks / impressions) * 100;
+  if (ctr >= cr.ctr_good)   return { label: "좋음",    color: C.good, bg: C.goodLt, ctr: ctr.toFixed(2) };
+  if (ctr >= cr.ctr_normal) return { label: "보통",    color: C.warn, bg: C.warnLt, ctr: ctr.toFixed(2) };
+  return                           { label: "소재문제", color: C.bad,  bg: C.badLt,  ctr: ctr.toFixed(2) };
+}
+function lpvRateStatus(clicks, lpv, cr = DEFAULT_CRITERIA) {
+  if (!clicks || !lpv) return null;
+  const rate = (lpv / clicks) * 100;
+  if (rate >= cr.lpvr_good)   return { label: "정상",    color: C.good, bg: C.goodLt, rate: rate.toFixed(1) };
+  if (rate >= cr.lpvr_normal) return { label: "보통",    color: C.warn, bg: C.warnLt, rate: rate.toFixed(1) };
+  return                             { label: "랜딩문제", color: C.bad,  bg: C.badLt,  rate: rate.toFixed(1) };
+}
+function cpaStatus(spend, purchases, margin, cr = DEFAULT_CRITERIA) {
+  if (!purchases || !spend || !margin) return null;
+  const cpa = spend / purchases;
+  const ratio = (cpa / margin) * 100;
+  if (ratio <= cr.cpa_keep) return { label: "유지", color: C.good, bg: C.goodLt, cpa: Math.round(cpa) };
+  if (ratio <= cr.cpa_hold) return { label: "보류", color: C.warn, bg: C.warnLt, cpa: Math.round(cpa) };
+  return                           { label: "컷",   color: C.bad,  bg: C.badLt,  cpa: Math.round(cpa) };
+}
+function roasStatus(convValue, spend, cr = DEFAULT_CRITERIA) {
+  if (!convValue || !spend) return null;
+  const roas = convValue / spend;
+  if (roas >= cr.roas_great) return { label: "매우좋음", color: C.good, bg: C.goodLt, roas: roas.toFixed(2) };
+  if (roas >= cr.roas_keep)  return { label: "유지",     color: C.accent, bg: C.accentLt, roas: roas.toFixed(2) };
+  if (roas >= cr.roas_hold)  return { label: "보류",     color: C.warn, bg: C.warnLt, roas: roas.toFixed(2) };
+  return                            { label: "컷",        color: C.bad,  bg: C.badLt,  roas: roas.toFixed(2) };
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 공통 UI
+// 공통 UI 컴포넌트
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const Card=({children,style={}})=>(
-  <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:14,padding:"18px 16px",...style}}>{children}</div>
+const Card = ({ children, style = {} }) => (
+  <div style={{
+    background: C.white, border: `1px solid ${C.border}`,
+    borderRadius: 18, padding: "20px 18px", ...style
+  }}>{children}</div>
 );
-const CardTitle=({title,sub,action})=>(
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+
+const CardTitle = ({ title, sub, action }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
     <div>
-      <div style={{fontSize:13,fontWeight:800,color:C.ink}}>{title}</div>
-      {sub&&<div style={{fontSize:10,color:C.inkLt,marginTop:2}}>{sub}</div>}
+      <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: "-0.01em" }}>{title}</div>
+      {sub && <div style={{ fontSize: 12, color: C.inkLt, marginTop: 2 }}>{sub}</div>}
     </div>
     {action}
   </div>
 );
-const Btn=({children,onClick,variant="primary",small=false,disabled=false,style={}})=>{
-  const v={
-    primary:{background:C.rose,  color:C.white,  border:"none",      boxShadow:`0 3px 10px ${C.rose}44`},
-    ghost:  {background:C.blush, color:C.rose,   border:`1px solid ${C.rose}44`},
-    sage:   {background:C.sageLt,color:C.sage,   border:`1px solid ${C.sage}44`},
-    danger: {background:"#FEF0F0",color:C.bad,   border:`1px solid ${C.bad}33`},
-    neutral:{background:C.cream, color:C.inkMid, border:`1px solid ${C.border}`},
-    gold:   {background:C.goldLt,color:C.gold,   border:`1px solid ${C.gold}44`},
+
+const Btn = ({ children, onClick, variant = "primary", small = false, disabled = false, style = {} }) => {
+  const v = {
+    primary: { background: C.accent,  color: C.white,  border: "none" },
+    ghost:   { background: C.accentLt, color: C.accent, border: `1px solid ${C.accent}33` },
+    danger:  { background: C.badLt,   color: C.bad,    border: `1px solid ${C.bad}33` },
+    neutral: { background: C.bg,      color: C.inkMid, border: `1px solid ${C.border}` },
+    good:    { background: C.goodLt,  color: C.good,   border: `1px solid ${C.good}44` },
+    warn:    { background: C.warnLt,  color: C.warn,   border: `1px solid ${C.warn}44` },
   }[variant];
-  return(
-    <button onClick={onClick} disabled={disabled}
-      style={{...v,borderRadius:8,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",
-        fontWeight:700,fontSize:small?10:12,padding:small?"5px 10px":"8px 16px",
-        transition:"all 0.15s",opacity:disabled?0.5:1,...style}}>
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      ...v, borderRadius: 10, cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily: FONT, fontWeight: 600, fontSize: small ? 11 : 13,
+      padding: small ? "6px 12px" : "10px 18px",
+      transition: "opacity 0.15s", opacity: disabled ? 0.4 : 1,
+      whiteSpace: "nowrap", ...style
+    }}>
       {children}
     </button>
   );
 };
-const Inp=({value,onChange,placeholder,type="text",style={}})=>(
-  <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-    style={{width:"100%",padding:"9px 12px",border:`1px solid ${C.border}`,borderRadius:9,
-      fontSize:12,color:C.ink,background:C.cream,outline:"none",fontFamily:"inherit",...style}}
-    onFocus={e=>e.target.style.borderColor=C.rose} onBlur={e=>e.target.style.borderColor=C.border}/>
+
+const Inp = ({ value, onChange, placeholder, type = "text", style = {} }) => (
+  <input
+    type={type} value={value || ""} onChange={e => onChange(e.target.value)}
+    placeholder={placeholder}
+    style={{
+      width: "100%", padding: "11px 14px", border: `1px solid ${C.border}`,
+      borderRadius: 12, fontSize: 13, color: C.ink, background: C.bg, outline: "none",
+      fontFamily: FONT, boxSizing: "border-box", transition: "border-color 0.15s", ...style
+    }}
+    onFocus={e => e.target.style.borderColor = C.accent}
+    onBlur={e => e.target.style.borderColor = C.border}
+  />
 );
-const Sel=({value,onChange,options,style={}})=>(
-  <select value={value} onChange={e=>onChange(e.target.value)}
-    style={{width:"100%",padding:"9px 12px",border:`1px solid ${C.border}`,borderRadius:9,
-      fontSize:12,color:C.ink,background:C.cream,outline:"none",fontFamily:"inherit",...style}}>
-    {options.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}
-  </select>
-);
-const Modal=({title,onClose,children,wide=false})=>(
-  <div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(43,31,46,0.45)",backdropFilter:"blur(4px)",
-    display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-    <div style={{background:C.white,borderRadius:20,padding:"24px",width:"100%",maxWidth:wide?640:440,
-      boxShadow:"0 24px 60px rgba(43,31,46,0.2)",maxHeight:"92vh",overflowY:"auto"}}
-      onClick={e=>e.stopPropagation()}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-        <div style={{fontSize:14,fontWeight:900,color:C.ink}}>{title}</div>
-        <button onClick={onClose} style={{background:C.cream,border:"none",borderRadius:8,width:28,height:28,
-          cursor:"pointer",fontSize:14,color:C.inkMid,fontWeight:700}}>✕</button>
-      </div>
-      {children}
-    </div>
-  </div>
-);
-const FR=({label,children})=>(
-  <div style={{marginBottom:12}}>
-    <div style={{fontSize:11,fontWeight:700,color:C.inkMid,marginBottom:5}}>{label}</div>
-    {children}
-  </div>
-);
-const BeautyTooltip=({active,payload,label})=>{
-  if(!active||!payload?.length) return null;
-  return(
-    <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",
-      boxShadow:`0 8px 24px rgba(43,31,46,0.12)`,fontSize:11,minWidth:140}}>
-      <p style={{color:C.rose,fontWeight:700,marginBottom:5}}>{label}</p>
-      {payload.map((p,i)=>(
-        <p key={i} style={{color:C.inkMid,margin:"2px 0"}}>{p.name}:{" "}
-          <span style={{color:C.ink,fontWeight:700}}>{typeof p.value==="number"?p.value.toLocaleString():p.value}</span>
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+      padding: "10px 14px", boxShadow: "0 8px 24px rgba(0,0,0,0.1)", fontSize: 11
+    }}>
+      <p style={{ color: C.inkMid, fontWeight: 700, marginBottom: 5 }}>{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: C.inkLt, margin: "2px 0" }}>
+          {p.name}:{" "}
+          <span style={{ color: C.ink, fontWeight: 700 }}>
+            {typeof p.value === "number" ? p.value.toLocaleString() : p.value}
+          </span>
         </p>
       ))}
     </div>
   );
 };
-const KpiGrid=({items,cols=6})=>(
-  <div className={cols===6?"kpi-grid":"kpi-grid-3"} style={{display:"grid",gridTemplateColumns:`repeat(${cols},1fr)`,gap:10,marginBottom:18}}>
-    {items.map((k,i)=>{
-      const good = k.change===0 ? true : k.good==="high"?k.change>0:k.change<0;
-      return(
-        <div key={i} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,
-          padding:"14px 14px 12px",position:"relative",overflow:"hidden",
-          transition:"box-shadow 0.2s,transform 0.2s",cursor:"default"}}
-          onMouseEnter={e=>{e.currentTarget.style.boxShadow=`0 6px 20px rgba(232,86,122,0.13)`;e.currentTarget.style.transform="translateY(-2px)"}}
-          onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)"}}>
-          <div style={{position:"absolute",top:0,left:0,right:0,height:3,
-            background:good?`linear-gradient(90deg,${C.good},${C.good}66)`:`linear-gradient(90deg,${C.bad},${C.bad}66)`}}/>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-            <div style={{fontSize:18}}>{k.icon}</div>
-            {k.change!==0&&(
-              <span style={{fontSize:10,fontWeight:700,color:good?C.good:C.bad,
-                background:good?"#EDF7F1":"#FEF0F0",padding:"2px 6px",borderRadius:20}}>
-                {k.change>0?"↑":"↓"}{Math.abs(k.change)}%</span>
-            )}
-          </div>
-          <div style={{fontSize:9,color:C.inkLt,fontWeight:700,letterSpacing:"0.1em",marginBottom:3}}>{k.label.toUpperCase()}</div>
-          <div style={{fontSize:18,fontWeight:900,color:C.ink,letterSpacing:"-0.02em",lineHeight:1}}>{k.value}</div>
-          <div style={{fontSize:9,color:C.inkLt,marginTop:4}}>{k.note}</div>
-        </div>
-      );
-    })}
+
+const StatusBadge = ({ label, color, bg }) => (
+  <span style={{
+    fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 100,
+    color, background: bg, border: `1px solid ${color}33`, whiteSpace: "nowrap"
+  }}>{label}</span>
+);
+
+// KPI 카드
+const KpiCard = ({ icon, label, value, note, accentColor }) => (
+  <div style={{
+    background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 14px",
+    position: "relative", overflow: "hidden"
+  }}>
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: accentColor || C.accent, borderRadius: "16px 16px 0 0" }} />
+    <div style={{ fontSize: 11, color: C.inkLt, fontWeight: 600, marginBottom: 6, letterSpacing: "0.02em" }}>{label}</div>
+    <div style={{ fontSize: 22, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em", lineHeight: 1 }}>{value}</div>
+    {note && <div style={{ fontSize: 10, color: C.inkLt, marginTop: 5 }}>{note}</div>}
   </div>
 );
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MAIN APP
+// MAIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 독립 모달 컴포넌트 — 내부 상태 관리, 외부 리렌더 차단
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// 인플루언서 추가/수정 모달
-function InfModalComp({mode, initial, onSave, onClose}){
-  const eInf = {name:"",displayName:"",tier:"무료",followers:"—",platform:"인스타",product:"",sent:1,posted:0,postedDate:null,reach:null,saves:null,clicks:null,conv:null,videoReceived:false,reusable:false,metaUsed:false,note:"",paid:false};
-  const [f, setF] = useState(()=>initial||eInf);
-  const set = (k,v) => setF(p=>({...p,[k]:v}));
-  return(
-    <Modal title={mode==="edit"?"✏️ 인플루언서 수정":"➕ 인플루언서 추가"} onClose={onClose}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <FR label="실명 / 닉네임"><Inp value={f.displayName||""} onChange={v=>set("displayName",v)} placeholder="경서"/></FR>
-        <FR label="계정 (핸들)"><Inp value={f.name} onChange={v=>set("name",v)} placeholder="@seoooazi"/></FR>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <FR label="티어"><Sel value={f.tier} onChange={v=>set("tier",v)} options={["유료","무료"]}/></FR>
-        <FR label="팔로워"><Inp value={f.followers} onChange={v=>set("followers",v)} placeholder="예: 28K"/></FR>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <FR label="플랫폼"><Sel value={f.platform} onChange={v=>set("platform",v)} options={["인스타","유튜브","틱톡","블로그"]}/></FR>
-        <FR label="제품"><Inp value={f.product} onChange={v=>set("product",v)} placeholder="프리온무선고데기-유료"/></FR>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <FR label="게시일"><Inp type="date" value={f.postedDate||""} onChange={v=>set("postedDate",v)}/></FR>
-        <FR label="게시 여부"><Sel value={String(f.posted)} onChange={v=>set("posted",v==="1"?1:0)} options={["0","1"]}/></FR>
-      </div>
-      <FR label="메모"><Inp value={f.note||""} onChange={v=>set("note",v)} placeholder="릴스/2차활용가능 3개월"/></FR>
-      <div style={{borderTop:`1px solid ${C.border}`,margin:"12px 0 8px",paddingTop:10}}>
-        <div style={{fontSize:11,fontWeight:800,color:C.ink,marginBottom:8}}>📹 콘텐츠 활용</div>
-        {[{key:"videoReceived",label:"🎬 영상 수령 완료"},{key:"reusable",label:"♻️ 2차 활용 가능"},{key:"metaUsed",label:"📣 메타 광고 소재 활용"},{key:"paid",label:"💰 2차활용 비용 입금 완료"}].map(({key,label})=>(
-          <label key={key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
-            <input type="checkbox" checked={!!f[key]} onChange={e=>set(key,e.target.checked)} style={{width:15,height:15,accentColor:C.rose}}/>
-            <span style={{fontSize:11,color:C.ink}}>{label}</span>
-          </label>
-        ))}
-      </div>
-      <Btn onClick={()=>{if(!f.name)return; onSave({...f,sent:+f.sent||1,posted:+f.posted||0});}} style={{width:"100%",marginTop:4}}>
-        {mode==="edit"?"💾 저장":"➕ 추가"}
-      </Btn>
-    </Modal>
-  );
-}
-
-// 인사이트 기록 모달
-function InsModalComp({initial, onSave, onClose}){
-  const [f, setF] = useState(()=>initial||{id:null,name:"",reach:"",saves:"",clicks:"",conv:""});
-  const set = (k,v) => setF(p=>({...p,[k]:v}));
-  return(
-    <Modal title="📊 인사이트 기록" onClose={onClose}>
-      <div style={{fontSize:12,fontWeight:700,color:C.ink,marginBottom:12}}>{f.name}</div>
-      <FR label="도달(Reach)"><Inp type="number" value={f.reach} onChange={v=>set("reach",v)} placeholder="0"/></FR>
-      <FR label="저장수"><Inp type="number" value={f.saves} onChange={v=>set("saves",v)} placeholder="0"/></FR>
-      <FR label="링크 클릭"><Inp type="number" value={f.clicks} onChange={v=>set("clicks",v)} placeholder="0"/></FR>
-      <FR label="전환(구매)"><Inp type="number" value={f.conv} onChange={v=>set("conv",v)} placeholder="0"/></FR>
-      <Btn onClick={()=>onSave({...f,reach:+f.reach||0,saves:+f.saves||0,clicks:+f.clicks||0,conv:+f.conv||0})}
-        style={{width:"100%",marginTop:8}}>💾 저장</Btn>
-    </Modal>
-  );
-}
-
-// 재고 추가/수정 모달
-function InvModalComp({mode, initial, onSave, onClose}){
-
-  const [f, setF] = useState(()=>initial||eInv);
-  const set = (k,v) => setF(p=>({...p,[k]:v}));
-  return(
-    <Modal title={mode==="add"?"상품 추가":"재고 수정"} onClose={onClose}>
-      <FR label="상품명 *"><Inp value={f.name} onChange={v=>set("name",v)} placeholder="세럼 30ml"/></FR>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-        <FR label="SKU"><Inp value={f.sku} onChange={v=>set("sku",v)} placeholder="SKU-001"/></FR>
-        <FR label="카테고리"><Inp value={f.category} onChange={v=>set("category",v)} placeholder="세럼"/></FR>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-        <FR label="현재 재고"><Inp type="number" value={f.stock} onChange={v=>set("stock",v)} placeholder="0"/></FR>
-        <FR label="주문 수량(입고예정)"><Inp type="number" value={f.ordered} onChange={v=>set("ordered",v)} placeholder="0"/></FR>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-        <FR label="발주 기준"><Inp type="number" value={f.reorder} onChange={v=>set("reorder",v)} placeholder="300"/></FR>
-        <FR label="30일 판매량"><Inp type="number" value={f.sold30} onChange={v=>set("sold30",v)} placeholder="0"/></FR>
-      </div>
-      <Btn onClick={()=>{if(!f.name)return; onSave({...f,stock:+f.stock||0,ordered:+f.ordered||0,reorder:+f.reorder||0,sold30:+f.sold30||0});}}
-        style={{width:"100%",marginTop:8}}>💾 저장</Btn>
-    </Modal>
-  );
-}
-
-// 스케줄 추가/수정 모달
-function SchModalComp({mode, initial, onSave, onClose}){
-  const empty = {type:"공구",title:"",date:"",endDate:"",platform:"",note:"",status:"예정"};
-  const [f, setF] = useState(()=>initial||empty);
-  const set = (k,v) => setF(p=>({...p,[k]:v}));
-  return(
-    <Modal title={mode==="add"?"일정 추가":"일정 수정"} onClose={onClose}>
-      <FR label="유형"><Sel value={f.type} onChange={v=>set("type",v)} options={["공구","시딩","광고","이벤트"]}/></FR>
-      <FR label="제목 *"><Inp value={f.title} onChange={v=>set("title",v)} placeholder="세럼 30ml 공구 오픈"/></FR>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-        <FR label="시작일 *"><Inp type="date" value={f.date} onChange={v=>set("date",v)}/></FR>
-        <FR label="종료일"><Inp type="date" value={f.endDate} onChange={v=>set("endDate",v)}/></FR>
-      </div>
-      <FR label="플랫폼"><Inp value={f.platform} onChange={v=>set("platform",v)} placeholder="네이버 스마트스토어"/></FR>
-      <FR label="메모"><Inp value={f.note} onChange={v=>set("note",v)} placeholder="한도 수량, 할인율 등"/></FR>
-      <FR label="상태"><Sel value={f.status} onChange={v=>set("status",v)} options={["예정","준비중","진행중","완료"]}/></FR>
-      <Btn onClick={()=>{if(!f.title||!f.date)return; onSave(f);}} style={{width:"100%",marginTop:8}}>💾 저장</Btn>
-    </Modal>
-  );
-}
-
-export default function OaDashboard(){
-  // 날짜 문자열 — 클라이언트에서만 계산 (하이드레이션 불일치 방지)
+export default function OaDashboard() {
   const dateStr = typeof window !== "undefined"
-    ? new Date().toLocaleDateString("ko-KR", {year:"numeric",month:"long",day:"numeric",weekday:"short"})
+    ? new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })
     : "";
-  const [sec,setSec]           = useState("home");
-  const [metaTab,setMetaTab]   = useState("overview");
-  const [campTab,setCampTab]   = useState("conversion");
-  const [pulse,setPulse]       = useState(false);
-  const [nid,setNid]           = useState(300);
 
-  // 판단 기준 + 소재 관리
-  const [criteria, setCriteria]      = useLocal(LS_CRITERIA, DEFAULT_CRITERIA);
-  const { creatives, addCreatives, removeCreative } = useCreatives();
-  const [creativeAd, setCreativeAd]  = useState(null);
+  const [sec, setSec] = useState("meta");
+  const [metaTab, setMetaTab] = useState("overview");
+  const [campTab, setCampTab] = useState("conversion");
 
-  // localStorage 데이터
-  const [infs,setInfs] = useState([]);
-  const [inv, setInv]  = useLocal(LS_INV, DEFAULT_INV);
-  const [sch, setSch]  = useLocal(LS_SCH, DEFAULT_SCH);
+  // 로고
+  const [logo, setLogo] = useState(() => { try { return localStorage.getItem(LS_LOGO) || null; } catch { return null; } });
+  const logoRef = useRef();
 
-  // 마진 설정
-  const [margin, setMargin]          = useLocal(LS_MARGIN, 30000);  // loaded ignored
-  const [margins, setMargins]        = useLocal(LS_MARGINS, DEFAULT_MARGINS);
-  const [marginModal, setMarginModal]= useState(false);
-  const [marginInput, setMarginInput]= useState("");
-  const [editingMargin, setEditingMargin] = useState(null); // {id, keyword, margin}
-  const [newKeyword, setNewKeyword]  = useState("");
-  const [newMarginVal, setNewMarginVal] = useState("");
+  // 데이터
+  const [sheetUrl, setSheetUrl, sheetUrlLoaded] = useLocal(LS_SHEET_URL, "");
+  const [margin, setMargin] = useLocal(LS_MARGIN, 30000);
+  const [margins, setMargins] = useLocal(LS_MARGINS, DEFAULT_MARGINS);
+  const [criteria, setCriteria] = useLocal(LS_CRITERIA, DEFAULT_CRITERIA);
+  const [metaRaw, setMetaRaw] = useState([]);
+  const [metaStatus, setMetaStatus] = useState("idle");
+  const [deletedAds, setDeletedAds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("oa_deleted_ads") || "[]"); } catch { return []; }
+  });
 
-  // 발주임박 시트 연동
-  const [orderUrl, setOrderUrl, orderUrlLoaded] = useLocal(LS_ORDER_URL, "");
-  const [orderRaw, setOrderRaw]   = useState([]);
-  const [orderStatus, setOrderStatus] = useState("idle");
-  const [orderModal, setOrderModal]   = useState(false);
-  const [orderInput, setOrderInput]   = useState("");
+  useEffect(() => {
+    if (sheetUrlLoaded && sheetUrl) fetchSheet(sheetUrl);
+  }, [sheetUrl, sheetUrlLoaded]);
 
-  // 재고원본 시트 연동
-  const [invUrl, setInvUrl, invUrlLoaded] = useLocal(LS_INV_URL, "");
-  const [invSheetStatus, setInvSheetStatus] = useState("idle");
-  const [invUrlModal, setInvUrlModal] = useState(false);
-  const [invUrlInput, setInvUrlInput] = useState("");
-
-  // 인플루언서 시트
-  const [infUrl, setInfUrl, infUrlLoaded] = useLocal(LS_INF_URL, "");
-  const [infSheetStatus, setInfSheetStatus] = useState("idle");
-  const [infUrlModal, setInfUrlModal]   = useState(false);
-  const [infUrlInput, setInfUrlInput]   = useState("");
-
-  // 구글 시트 연동 상태
-  const [sheetUrl,setSheetUrl, sheetUrlLoaded] = useLocal(LS_SHEET_URL, "");
-  const [metaRaw,setMetaRaw]         = useState([]);   // 파싱된 원본 rows
-  const [metaStatus,setMetaStatus]   = useState("idle"); // idle | loading | ok | error
-  const [metaError,setMetaError]     = useState("");
-  const [sheetModal,setSheetModal]   = useState(false);
-  const [sheetInput,setSheetInput]   = useState("");
-  const [deletedAds,setDeletedAds]   = useState(()=>{try{return JSON.parse(localStorage.getItem("oa_deleted_ads")||"[]");}catch{return [];}}); // 삭제된 광고명 목록
-
-  // 모달
-
-  // 폼
-
-
-
-
-
-
-
-
-  useEffect(()=>{const t=setInterval(()=>setPulse(v=>!v),2500);return()=>clearInterval(t);},[]);
-
-  // 시트 URL 로드되면 자동 fetch (새로고침해도 자동 연동)
-  useEffect(()=>{
-    if(sheetUrlLoaded && sheetUrl) fetchSheet(sheetUrl);
-  },[sheetUrl, sheetUrlLoaded]);
-
-  // 자동 갱신 없음 — 수동 새로고침만
-
-  // ── 구글 시트 fetch ──────────────────────────────
-  async function fetchSheet(url){
-    if(!url) return;
+  async function fetchSheet(url) {
+    if (!url) return;
     setMetaStatus("loading");
-    setMetaError("");
-    try{
-      // 공유 URL → CSV export URL 변환
+    try {
       const res = await fetch(`/api/sheet?url=${encodeURIComponent(url)}`);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
-      const rows = parseCSV(text).map(mapMetaRow).filter(r=>r.date||r.campaign);
+      const rows = parseCSV(text).map(mapMetaRow).filter(r => r.date || r.campaign);
       setMetaRaw(rows);
       setMetaStatus("ok");
-    }catch(e){
+    } catch (e) {
       setMetaStatus("error");
-      setMetaError(e.message);
     }
   }
 
-  function saveSheetUrl(){
-    const url = sheetInput.trim();
-    setSheetUrl(url);
-    setSheetModal(false);
-    if(url) fetchSheet(url);
-  }
+  const hasSheet = metaStatus === "ok" && metaRaw.length > 0;
+  const metaFiltered = metaRaw.filter(r => !deletedAds.includes(r.adName || r.campaign || ""));
 
-  // ── 발주임박 시트 fetch ─────────────────────────────
-  async function fetchOrderSheet(url){
-    if(!url) return;
-    setOrderStatus("loading");
-    try{
-      const res = await fetch(`/api/sheet?url=${encodeURIComponent(url)}`);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const rows = parseOrderCSV(text);
-      setOrderRaw(rows);
-      setOrderStatus("ok");
-    }catch(e){
-      setOrderStatus("error");
-    }
-  }
+  // 집계
+  const agg = hasSheet ? (() => {
+    const totalSpend     = metaFiltered.reduce((s, r) => s + r.spend, 0);
+    const totalClicks    = metaFiltered.reduce((s, r) => s + r.clicks, 0);
+    const totalLpv       = metaFiltered.reduce((s, r) => s + r.lpv, 0);
+    const totalPurchases = metaFiltered.reduce((s, r) => s + r.purchases, 0);
+    const totalConvVal   = metaFiltered.reduce((s, r) => s + r.convValue, 0);
+    const avgCtr = metaFiltered.length ? metaFiltered.reduce((s, r) => s + r.ctr, 0) / metaFiltered.length : 0;
+    const avgCpc = totalClicks ? totalSpend / totalClicks : 0;
+    const lpvRate = totalClicks ? (totalLpv / totalClicks) * 100 : 0;
+    const roas = totalSpend ? totalConvVal / totalSpend : 0;
 
-  function parseOrderCSV(text){
-    const lines = text.trim().split("\n").map(l=>{
-      const res=[]; let cur="", inQ=false;
-      for(let i=0;i<l.length;i++){
-        if(l[i]==='"'){inQ=!inQ;}
-        else if(l[i]===","&&!inQ){res.push(cur.trim().replace(/^"|"$/g,""));cur="";}
-        else cur+=l[i];
-      }
-      res.push(cur.trim().replace(/^"|"$/g,""));
-      return res;
-    });
-    if(lines.length<2) return [];
-    // 고정 컬럼 인덱스로 직접 읽기 (헤더 파싱 오류 방지)
-    // 컬럼 순서: SKU명(0), 최소발주일(1), 조정후발주일(2), 원본1주평균(3),
-    //   쿠팡7일평균(4), 합산7일평균(5), 판매량차이(6), 차이비율(7),
-    //   현재고(8), 현재고소진합산(9), 총재고소진합산(10), 발주판단(11), 메모(12)
-    let dataStart=0;
-    for(let i=0;i<Math.min(lines.length,5);i++){
-      const first=(lines[i][0]||"").trim();
-      if(!first||first.includes("발주 임박")||first.includes("SKU")||first==="없음") continue;
-      dataStart=i; break;
-    }
-    return lines.slice(dataStart)
-      .filter(l=>l[0]&&l[0].trim()&&l[0]!=="없음"&&!l[0].includes("발주 임박")&&!l[0].includes("SKU명"))
-      .map(row=>({
-        "SKU명":              (row[0]||"").trim(),
-        "최소발주일":         (row[1]||"").trim(),
-        "조정후발주일":       (row[2]||"").trim(),
-        "원본1주평균":        (row[3]||"").trim(),
-        "쿠팡7일평균":        (row[4]||"").trim(),
-        "합산7일평균":        (row[5]||"").trim(),
-        "판매량차이":         (row[6]||"").trim(),
-        "차이비율":           (row[7]||"").trim(),
-        "현재고":             (row[8]||"").trim(),
-        "합산기준 현재고소진":(row[9]||"").trim(),
-        "합산기준 총재고소진":(row[10]||"").trim(),
-        "발주판단":           (row[11]||"").trim(),
-        "메모":               (row[12]||"").trim(),
-      }));
-  }
-
-  // 발주임박 URL 로드시 자동 fetch
-  useEffect(()=>{
-    if(orderUrlLoaded && orderUrl) fetchOrderSheet(orderUrl);
-  },[orderUrl, orderUrlLoaded]);
-
-  // ── 재고원본 시트 fetch ─────────────────────────
-  async function fetchInvSheet(url){
-    if(!url) return;
-    setInvSheetStatus("loading");
-    try{
-      const res = await fetch(`/api/sheet?url=${encodeURIComponent(url)}`);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const parsed = parseInvSheetCSV(text);
-      if(parsed.length > 0){
-        setInv(parsed);
-        setInvSheetStatus("ok");
-      } else {
-        setInvSheetStatus("error");
-      }
-    }catch(e){ setInvSheetStatus("error"); }
-  }
-
-  function parseInvSheetCSV(text){
-    const lines = text.trim().split("\n").map(l=>{
-      const res=[]; let cur="", inQ=false;
-      for(let i=0;i<l.length;i++){
-        if(l[i]==='"'){inQ=!inQ;}
-        else if(l[i]===","&&!inQ){res.push(cur.trim());cur="";}
-        else cur+=l[i];
-      }
-      res.push(cur.trim());
-      return res;
-    });
-    if(lines.length<2) return [];
-
-    // 헤더행 찾기
-    let hIdx=0;
-    for(let i=0;i<Math.min(lines.length,5);i++){
-      if(lines[i].join(",").includes("구분1")){hIdx=i;break;}
-    }
-
-    // 재고원본 고정 컬럼 인덱스 (통합_문서1.xlsx 기준)
-    // A(0)=구분1, B(1)=구분2, E(4)=제품명, F(5)=재고,
-    // I(8)=생산중, J(9)=예상발주, AD(29)=28일평균판매, AF(31)=1주평균판매
-    return lines.slice(hIdx+1).filter(l=>l.some(c=>c)).map((row,ri)=>{
-      const g = (i) => (row[i]||"").trim();
-      const n = (i) => parseFloat((row[i]||"").replace(/,/g,""))||0;
-      const name = g(4);  // E열 = 제품명
-      if(!name) return null;
-      return {
-        id:       Date.now()+ri,
-        name,
-        sku:      g(1)||g(0)||"",   // B열(구분2) 또는 A열(구분1)
-        category: g(0)||"기타",      // A열(구분1)
-        stock:    n(5),              // F열 = 재고
-        ordered:  n(8),              // I열 = 생산중
-        reorder:  n(9)||Math.round(n(31)*14),  // J열 = 예상발주
-        sold30:   Math.round(n(29)),            // AD열 = 28일평균판매
-      };
-    }).filter(Boolean);
-  }
-
-  // 재고 URL 로드시 자동 fetch
-  useEffect(()=>{
-    if(invUrlLoaded && invUrl) fetchInvSheet(invUrl);
-  },[invUrl, invUrlLoaded]);
-
-  // ── 인플루언서 시트 fetch ─────────────────────────
-  async function fetchInfSheet(url){
-    if(!url) return;
-    // URL 기본 유효성 검사
-    try{ new URL(url); } catch(e){ setInfSheetStatus("error"); return; }
-    setInfSheetStatus("loading");
-    try{
-      const res = await fetch(`/api/sheet?url=${encodeURIComponent(url)}`);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      let parsed = [];
-      try{ parsed = parseInfSheetCSV(text); } catch(e){ parsed = []; }
-      if(parsed.length > 0){
-        // 새로고침 시 대시보드에서 직접 체크한 값 유지 (name 기준 매칭)
-        setInfs(prev => {
-          const prevMap = {};
-          prev.forEach(p => { prevMap[p.name] = p; });
-          return parsed.map(p => {
-            const old = prevMap[p.name];
-            if(!old) return p;
-            return {...p, videoReceived:old.videoReceived, reusable:old.reusable, metaUsed:old.metaUsed, paid:old.paid};
-          });
-        });
-        setInfSheetStatus("ok");
-      } else {
-        setInfSheetStatus("error");
-      }
-    }catch(e){ setInfSheetStatus("error"); }
-  }
-
-  function parseInfSheetCSV(text){
-    // BOM 제거
-    const clean = text.replace(/^\uFEFF/, "");
-    const lines = clean.trim().split("\n").map(l=>{
-      const res=[]; let cur="", inQ=false;
-      for(let i=0;i<l.length;i++){
-        if(l[i]==='\"'){inQ=!inQ;}
-        else if(l[i]===","&&!inQ){res.push(cur.trim());cur="";}
-        else cur+=l[i];
-      }
-      res.push(cur.trim());
-      return res;
-    });
-    if(lines.length<2) return [];
-
-    // 헤더행 찾기 — "담당자" 또는 "제품명" 또는 "이름" 포함 행
-    let hIdx=0;
-    for(let i=0;i<Math.min(lines.length,5);i++){
-      const joined = lines[i].join(",");
-      if(joined.includes("담당자")||joined.includes("제품명")||joined.includes("이름")){hIdx=i;break;}
-    }
-    // 헤더 정규화 (공백/줄바꿈 제거, 소문자)
-    const headers = lines[hIdx].map(h=>h.replace(/\s+/g,"").toLowerCase());
-
-    // 컬럼 인덱스 찾기 — 정규화된 헤더에서 키워드 포함 여부
-    const col = (...keys) => {
-      for(const k of keys){
-        const kn = k.replace(/\s+/g,"").toLowerCase();
-        const i = headers.findIndex(h=>h.includes(kn));
-        if(i>=0) return i;
-      }
-      return -1;
-    };
-
-    const iProduct  = col("제품명","제품","상품");
-    const iName     = col("이름","name");
-    const iHandle   = col("인스타그램아이디","인스타그램","아이디","handle","계정");
-    const iPlatform = col("매체","platform","플랫폼");
-    const iSent     = col("제품발송","발송");
-    const iDeadline = col("작성마감일","마감일","마감");
-    const iConfirm  = col("포스팅확인","포스팅","확인");
-    const iNote     = col("비고","note","메모");
-    const iExtend   = col("기간연장","연장");
-
-    // "확인완료" / "발송완료" / O / Y / TRUE / 1 → true
-    const bool = v => !!(v && (
-      v==="확인완료"||v==="발송완료"||v==="완료"||
-      v==="O"||v==="o"||v==="Y"||v==="y"||
-      v==="TRUE"||v==="true"||v==="1"
-    ));
-
-    // M/D 또는 YYYY-MM-DD 날짜 파싱
-     const parseDate = raw => {
-       if(!raw) return null;
-       const s = raw.trim();
-       // YYYY-MM-DD
-       if(s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
-       // YYYY. M. D 또는 YYYY.MM.DD 또는 YYYY/MM/DD (공백 포함)
-       const m1 = s.match(/^(\d{4})[\.\/]\s*(\d{1,2})[\.\/]\s*(\d{1,2})\.?$/);
-       if(m1) return `${m1[1]}-${m1[2].padStart(2,"0")}-${m1[3].padStart(2,"0")}`;
-       // M.D 또는 M/D
-       const m2 = s.match(/^(\d{1,2})[\.\/](\d{1,2})$/);
-       if(m2) return `2026-${m2[1].padStart(2,"0")}-${m2[2].padStart(2,"0")}`;
-       return null;
-     };
-    return lines.slice(hIdx+1).filter(l=>l.some(c=>c)).map((row,ri)=>{
-      const g = i => i>=0?(row[i]||"").trim():"";
-      const handle = g(iHandle)||g(iName);
-      const displayName = g(iName);
-      if(!handle && !displayName) return null;
-
-      const product  = g(iProduct);
-      const noteRaw  = [g(iNote), g(iExtend)].filter(Boolean).join(" / ");
-      const tier = /\d+만원|\d+,\d{3}원/.test(noteRaw) ? "유료" : "무료";
-      const reusable = noteRaw.includes("2차활용")||noteRaw.includes("2차 활용");
-      const confirmed = bool(g(iConfirm));
-
-      return {
-        id:            Date.now()+ri,
-        name:          handle.startsWith("@")?handle:`@${handle}`,
-        displayName:   displayName||handle,
-        tier,
-        followers:     "—",
-        platform:      g(iPlatform)||"인스타",
-        product,
-        sent:          bool(g(iSent)) ? 1 : 0,
-        posted:        confirmed ? 1 : 0,
-        postedDate:    parseDate(g(iDeadline)),
-        reach:         null, saves:null, clicks:null, conv:null,
-        videoReceived: confirmed,
-        reusable,
-        metaUsed:      false,
-        paid:          false,
-        note:          noteRaw,
-      };
-    }).filter(Boolean);
-  }
-  // 인플루언서 URL 로드시 자동 fetch
-  useEffect(()=>{
-    if(!infUrlLoaded || !infUrl) return;
-    try {
-      new URL(infUrl); // URL 유효성 검사
-      fetchInfSheet(infUrl);
-    } catch(e) {
-      setInfUrl(""); // 잘못된 URL이면 조용히 삭제
-      setInfSheetStatus("idle");
-    }
-  },[infUrl, infUrlLoaded]);
-
-  // ── 메타 데이터 집계 ─────────────────────────────
-  const hasSheet = metaStatus==="ok" && metaRaw.length>0;
-  const metaFiltered = metaRaw.filter(r => !deletedAds.includes(r.adName||r.campaign||""));
-
-  const metaAgg = hasSheet ? (() => {
-    const totalSpend    = metaFiltered.reduce((s,r)=>s+r.spend,0);
-    const totalClicks   = metaFiltered.reduce((s,r)=>s+r.clicks,0);
-    const totalLpv      = metaFiltered.reduce((s,r)=>s+r.lpv,0);
-    const totalPurchases= metaFiltered.reduce((s,r)=>s+r.purchases,0);
-    const avgCtr        = metaFiltered.length ? metaFiltered.reduce((s,r)=>s+r.ctr,0)/metaFiltered.length : 0;
-    const avgCpc        = totalClicks ? totalSpend/totalClicks : 0;
-    const avgCpa        = totalPurchases ? totalSpend/totalPurchases : 0;
-    const lpvRate       = totalClicks ? (totalLpv/totalClicks)*100 : 0;
-
-    // 날짜별 집계
+    // 날짜별
     const byDate = {};
-    metaFiltered.forEach(r=>{
-      if(!r.date) return;
-      if(!byDate[r.date]) byDate[r.date]={day:r.date.slice(5).replace("-","/"),spend:0,clicks:0,lpv:0,purchases:0,ctr:0,n:0};
-      byDate[r.date].spend+=r.spend;
-      byDate[r.date].clicks+=r.clicks||r.clicksAll||0;
-      byDate[r.date].lpv+=r.lpv;
-      byDate[r.date].purchases+=r.purchases;
-      byDate[r.date].ctr+=r.ctr;
+    metaFiltered.forEach(r => {
+      if (!r.date) return;
+      if (!byDate[r.date]) byDate[r.date] = { day: r.date.slice(5).replace("-", "/"), spend: 0, clicks: 0, lpv: 0, ctr: 0, n: 0 };
+      byDate[r.date].spend += r.spend;
+      byDate[r.date].clicks += r.clicks;
+      byDate[r.date].lpv += r.lpv;
+      byDate[r.date].ctr += r.ctr;
       byDate[r.date].n++;
     });
     const daily = Object.values(byDate)
-      .sort((a,b)=>a.day.localeCompare(b.day))
-      .map(d=>({...d,ctr:d.n?+(d.ctr/d.n).toFixed(2):0,cpc:d.clicks?+(d.spend/d.clicks).toFixed(0):0}));
+      .sort((a, b) => a.day.localeCompare(b.day))
+      .map(d => ({ ...d, ctr: d.n ? +(d.ctr / d.n).toFixed(2) : 0 }));
 
-    // 캠페인별 집계
-    // 광고 이름 기준으로 집계 (광고세트 정보도 포함)
+    // 광고별
     const byAd = {};
-    metaFiltered.forEach(r=>{
+    metaFiltered.forEach(r => {
       const key = r.adName || r.campaign || "unknown";
-      if(!byAd[key]) byAd[key]={
-        name: r.adName || key,
-        adset: r.adset || "",
-        campaign: r.campaign || "",
-        objective: r.objective || "",
-        resultType: r.resultType || "",
-        spend:0, clicks:0, lpv:0, purchases:0, convValue:0, cart:0, ctrSum:0, n:0
-      };
+      if (!byAd[key]) byAd[key] = { name: r.adName || key, adset: r.adset || "", campaign: r.campaign || "", objective: r.objective || "", spend: 0, clicks: 0, lpv: 0, purchases: 0, convValue: 0, impressions: 0, ctrSum: 0, n: 0 };
       byAd[key].spend      += r.spend;
-      byAd[key].clicks     += r.clicks||r.clicksAll||0;
+      byAd[key].clicks     += r.clicks;
       byAd[key].lpv        += r.lpv;
       byAd[key].purchases  += r.purchases;
       byAd[key].convValue  += r.convValue;
-      byAd[key].cart       += r.cart;
-      byAd[key].ctrSum     += r.ctr||0;
-      byAd[key].n          += 1;
+      byAd[key].impressions += r.impressions;
+      byAd[key].ctrSum     += r.ctr;
+      byAd[key].n++;
     });
-    const campaigns = Object.values(byAd).map(c=>({
+    const ads = Object.values(byAd).map(c => ({
       ...c,
-      cpa:     (c.purchases||0)>0 ? Math.round((c.spend||0)/(c.purchases||1)) : 0,
-      roas:    (c.convValue||0)>0&&(c.spend||0)>0 ? +((c.convValue||0)/(c.spend||1)).toFixed(2) : 0,
-      lpvRate: (c.clicks||0)>0 ? Math.round(((c.lpv||0)/(c.clicks||1))*100) : 0,
-      cpc:     (c.clicks||0)>0 ? Math.round((c.spend||0)/(c.clicks||1)) : 0,
-      ctr:     (c.n||0)>0 ? +((c.ctrSum||0)/(c.n||1)).toFixed(2) : 0,
-      convValue: c.convValue||0,
-      purchases: c.purchases||0,
-      cart:      c.cart||0,
-      clicks:    c.clicks||0,
-      lpv:       c.lpv||0,
-      spend:     c.spend||0,
+      cpa:     c.purchases > 0 ? Math.round(c.spend / c.purchases) : 0,
+      roas:    c.convValue > 0 && c.spend > 0 ? +(c.convValue / c.spend).toFixed(2) : 0,
+      lpvRate: c.clicks > 0 ? Math.round((c.lpv / c.clicks) * 100) : 0,
+      cpc:     c.clicks > 0 ? Math.round(c.spend / c.clicks) : 0,
+      ctr:     c.n > 0 ? +(c.ctrSum / c.n).toFixed(2) : 0,
     }));
-    const convCamps    = campaigns.filter(c=>isConversionCampaign(c.objective, c.campaign));
-    const trafficCamps = campaigns.filter(c=>!convCamps.includes(c));
+    const convAds    = ads.filter(c => isConvCamp(c.objective, c.campaign));
+    const trafficAds = ads.filter(c => !convAds.includes(c));
 
-    return {totalSpend,totalClicks,totalLpv,totalPurchases,avgCtr,avgCpc,avgCpa,lpvRate,daily,campaigns,convCamps,trafficCamps};
+    return { totalSpend, totalClicks, totalLpv, totalPurchases, totalConvVal, avgCtr, avgCpc, lpvRate, roas, daily, ads, convAds, trafficAds };
   })() : null;
 
-  // ── 알림 계산 ────────────────────────────────────
-  const overdueIns     = infs.filter(f=>{const s=insightStatus(f);return s.label.includes("미입력")||s.label==="오늘 입력!";});
-  const dangerInv      = inv.filter(i=>stockStatus(i).label==="위험");
-  const cautionInv     = inv.filter(i=>stockStatus(i).label==="주의");
-  const overdueScheds  = sch.filter(s=>{const d=daysUntil(s.endDate||s.date);return d!==null&&d<0&&s.status!=="완료";});
-  const urgentScheds   = sch.filter(s=>{const d=daysUntil(s.date);return d!==null&&d>=0&&d<=5&&s.status!=="완료";});
-  // 광고 교체/보류 알림 — 시트 데이터 있을 때만
-  const adAlerts = hasSheet ? metaFiltered.reduce((acc, r)=>{
-    const key = r.adName||r.campaign||"";
-    if(!key) return acc;
-    if(!acc[key]) acc[key]={...r, name:key, adset:r.adset||"", campaign:r.campaign||""};
-    else {
-      acc[key].spend      =(acc[key].spend||0)+(r.spend||0);
-      acc[key].clicks     =(acc[key].clicks||0)+(r.clicks||r.clicksAll||0);
-      acc[key].clicksAll  =(acc[key].clicksAll||0)+(r.clicksAll||0);
-      acc[key].lpv        =(acc[key].lpv||0)+(r.lpv||0);
-      acc[key].purchases  =(acc[key].purchases||0)+(r.purchases||0);
-      acc[key].impressions=(acc[key].impressions||0)+(r.impressions||0);
-    }
-    return acc;
-  }, {}) : {};
-  const cutAds  = Object.values(adAlerts).filter(ad=>{
-    const adMargin = getAdMargin(ad.name, ad.campaign, margins, margin);
-    const s=adScore(ad, adMargin); return s.issues.some(i=>i.label==="컷"||i.label==="랜딩문제"||i.label==="소재문제");
-  });
-  const holdAds = Object.values(adAlerts).filter(ad=>{
-    const adMargin = getAdMargin(ad.name, ad.campaign, margins, margin);
-    const s=adScore(ad, adMargin); return !cutAds.includes(ad)&&s.issues.some(i=>i.label==="보류"||i.label==="보통");
-  });
-  const totalAlerts    = overdueIns.length+dangerInv.length+overdueScheds.length+urgentScheds.length+cutAds.length+holdAds.length+orderRaw.length;
+  // 광고 판단
+  const adJudge = hasSheet ? (() => {
+    const byAd = {};
+    metaFiltered.forEach(r => {
+      const key = r.adName || r.campaign || "";
+      if (!key) return;
+      if (!byAd[key]) byAd[key] = { ...r, name: key };
+      else {
+        byAd[key].spend      += r.spend;
+        byAd[key].clicks     += r.clicks;
+        byAd[key].lpv        += r.lpv;
+        byAd[key].purchases  += r.purchases;
+        byAd[key].impressions += r.impressions;
+      }
+    });
+    return Object.values(byAd);
+  })() : [];
 
-  // ── CRUD 콜백 (모달 컴포넌트에서 onSave로 호출) ─────
-  function saveInf(item){
-    if(infModalData?.mode==="edit"){
-      setInfs(arr=>arr.map(x=>x.id===item.id?item:x));
-    } else {
-      setInfs(arr=>[...arr,{...item,id:Date.now()}]);
-    }
-    setInfModalData(null);
-  }
-  function saveIns(item){
-    setInfs(arr=>arr.map(f=>f.id===item.id?{...f,...item}:f));
-    setInsModalData(null);
-  }
-  function saveInv(item){
-    if(invModalData?.mode==="edit"){
-      setInv(arr=>arr.map(v=>v.id===item.id?item:v));
-    } else {
-      setInv(arr=>[...arr,{...item,id:Date.now()}]);
-    }
-    setInvModalData(null);
-  }
-  function saveSch(item){
-    if(schModalData?.mode==="edit"){
-      setSch(arr=>arr.map(s=>s.id===item.id?item:s));
-    } else {
-      setSch(arr=>[...arr,{...item,id:Date.now()}]);
-    }
-    setSchModalData(null);
-  }
+  const cutAds  = adJudge.filter(ad => {
+    const m = getAdMargin(ad.name, ad.campaign, margins, margin);
+    const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
+    const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+    const lpvR = lpvRateStatus(ad.clicks, ad.lpv, criteria);
+    return [lpvC, cpaJ, lpvR].some(s => s?.label === "컷" || s?.label === "랜딩문제");
+  });
+  const holdAds = adJudge.filter(ad => {
+    if (cutAds.includes(ad)) return false;
+    const m = getAdMargin(ad.name, ad.campaign, margins, margin);
+    const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
+    const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+    const ctrJ = ctrStatus(ad.clicks, ad.impressions, criteria);
+    return [lpvC, cpaJ, ctrJ].some(s => s?.label === "보류" || s?.label === "보통");
+  });
 
-  const NAVS=[
-    {id:"home",         icon:"🏠",label:"홈"},
-    {id:"meta",         icon:"📣",label:"메타광고"},
-    {id:"metaSettings", icon:"⚙️",label:"광고설정"},
-    {id:"influencer",   icon:"✨",label:"인플루언서"},
-    {id:"inventory",    icon:"📦",label:"재고"},
-    {id:"schedule",     icon:"📅",label:"스케줄"},
+  const NAVS = [
+    { id: "meta",         label: "메타광고", icon: "📊" },
+    { id: "metaSettings", label: "광고 설정", icon: "⚙️" },
   ];
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🏠 홈
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const HomeSection=()=>(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{background:`linear-gradient(135deg,${C.rose},${C.roseLt})`,borderRadius:16,padding:"20px",
-        color:C.white,boxShadow:`0 8px 28px ${C.rose}44`}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",opacity:0.8,marginBottom:4}}>TODAY · {dateStr}</div>
-        <div style={{fontSize:26,fontWeight:900,lineHeight:1.1}}>
-          {totalAlerts>0?`확인 필요 ${totalAlerts}건`:"모두 정상 ✅"}</div>
-        <div style={{fontSize:11,opacity:0.8,marginTop:6}}>
-          {[dangerInv.length>0&&`재고위험 ${dangerInv.length}`,
-            overdueIns.length>0&&`인사이트미입력 ${overdueIns.length}`,
-            overdueScheds.length>0&&`기간초과 ${overdueScheds.length}`,
-            urgentScheds.length>0&&`D-5임박 ${urgentScheds.length}`,
-            orderRaw.length>0&&`발주임박 ${orderRaw.length}`,
-            cutAds.length>0&&`광고교체 ${cutAds.length}`,
-            holdAds.length>0&&`광고보류 ${holdAds.length}`,
-          ].filter(Boolean).join("  ·  ")||"처리할 항목이 없습니다"}
-        </div>
-      </div>
+  function handleLogoUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const url = ev.target.result;
+      setLogo(url);
+      try { localStorage.setItem(LS_LOGO, url); } catch {}
+    };
+    reader.readAsDataURL(file);
+  }
 
-      <div className="alert-grid" style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
-      {dangerInv.length>0&&(
-        <Card>
-          <CardTitle title="🚨 재고 위험 — 즉시 발주 필요" sub="7일치 미만"/>
-          {dangerInv.map(item=>(
-            <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-              background:"#FEF0F0",border:`1px solid ${C.bad}33`,borderRadius:10,padding:"10px 14px",
-              marginBottom:6,flexWrap:"wrap",gap:8}}>
-              <div>
-                <div style={{fontSize:12,fontWeight:800,color:C.ink}}>{item.name}</div>
-                <div style={{fontSize:10,color:C.inkMid,marginTop:2}}>
-                  현재고 {item.stock.toLocaleString()}개 · <span style={{color:C.bad,fontWeight:700}}>{stockDays(item)}일치</span> 남음
-                </div>
-              </div>
-              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <span style={{fontSize:11,fontWeight:800,color:C.bad,background:C.white,border:`1px solid ${C.bad}44`,
-                  padding:"4px 12px",borderRadius:20}}>발주기준 {item.reorder.toLocaleString()}개</span>
-                <Btn variant="neutral" small onClick={()=>setSec("inventory")}>→ 재고</Btn>
-              </div>
-            </div>
-          ))}
-        </Card>
-      )}
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 메타광고 섹션
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const MetaSection = (() => {
+    const d = agg;
+    const fmt = n => n >= 1000 ? `₩${Math.round(n / 1000).toLocaleString()}K` : `₩${Math.round(n)}`;
 
-      {cautionInv.length>0&&(
-        <Card>
-          <CardTitle title="⚠️ 재고 주의 — 발주 검토" sub="21일치 미만"/>
-          {cautionInv.map(item=>(
-            <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-              background:"#FFF8EC",border:`1px solid ${C.warn}33`,borderRadius:10,padding:"10px 14px",marginBottom:6,flexWrap:"wrap",gap:8}}>
-              <div>
-                <div style={{fontSize:12,fontWeight:700,color:C.ink}}>{item.name}</div>
-                <div style={{fontSize:10,color:C.inkMid,marginTop:2}}>현재고 {item.stock.toLocaleString()}개 · <span style={{color:C.warn,fontWeight:700}}>{stockDays(item)}일치</span></div>
-              </div>
-              <Btn variant="neutral" small onClick={()=>setSec("inventory")}>→ 재고</Btn>
-            </div>
-          ))}
-        </Card>
-      )}
-      </div>
-
-      <div className="alert-grid" style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
-      {overdueIns.length>0&&(
-        <Card>
-          <CardTitle title="❗ 인사이트 미입력" sub="D+7 기록 기한 초과"/>
-          {overdueIns.map(f=>{
-            const st=insightStatus(f);
-            return(
-              <div key={f.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                background:C.blush,border:`1px solid ${C.rose}33`,borderRadius:10,padding:"10px 14px",marginBottom:6,flexWrap:"wrap",gap:8}}>
-                <div>
-                  <div style={{fontSize:12,fontWeight:800,color:C.ink}}>{f.name}</div>
-                  <div style={{fontSize:10,color:C.inkMid,marginTop:2}}>
-                    {f.platform} · {f.product} · 게시 {f.postedDate} · <span style={{color:st.color,fontWeight:700}}>{st.label}</span>
-                  </div>
-                </div>
-                <Btn variant="ghost" small onClick={()=>{
-                  setInsModalData({initial:{id:f.id,name:f.name,reach:"",saves:"",clicks:"",conv:""}});
-                  setInsModalData({initial:true});
-                }}>✏️ 바로 입력</Btn>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      {overdueScheds.length>0&&(
-        <Card>
-          <CardTitle title="📅 기간 초과 일정" sub="종료일 경과 · 미완료 처리"/>
-          {overdueScheds.map(s=>{
-            const tc=schTypeColor(s.type);
-            return(
-              <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                background:C.cream,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:6,flexWrap:"wrap",gap:8}}>
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontSize:10,fontWeight:700,color:tc,background:`${tc}18`,padding:"2px 8px",borderRadius:20}}>{s.type}</span>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:700,color:C.inkMid,textDecoration:"line-through"}}>{s.title}</div>
-                    <div style={{fontSize:10,color:C.inkLt}}>{s.endDate||s.date} 종료</div>
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:6}}>
-                  <Btn variant="sage" small onClick={()=>setSch(sch.map(x=>x.id===s.id?{...x,status:"완료"}:x))}>✅ 완료</Btn>
-                  <Btn variant="danger" small onClick={()=>setSch(sch.filter(x=>x.id!==s.id))}>🗑</Btn>
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      {urgentScheds.length>0&&(
-        <Card>
-          <CardTitle title="🔔 D-5 임박 일정" sub="5일 이내 시작"/>
-          {urgentScheds.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(s=>{
-            const d=daysUntil(s.date), tc=schTypeColor(s.type);
-            return(
-              <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                background:d===0?"#FFF8FC":C.white,border:`1px solid ${d<=1?C.rose+"55":C.border}`,
-                borderRadius:10,padding:"10px 14px",marginBottom:6,flexWrap:"wrap",gap:8}}>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <div style={{textAlign:"center",minWidth:32}}>
-                    <div style={{fontSize:9,color:C.inkLt}}>시작</div>
-                    <div style={{fontSize:15,fontWeight:900,color:d===0?C.rose:d<=2?C.bad:C.warn}}>
-                      {d===0?"오늘":`D-${d}`}</div>
-                  </div>
-                  <div>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:10,fontWeight:700,color:tc,background:`${tc}18`,padding:"1px 7px",borderRadius:20}}>{schTypeIcon(s.type)} {s.type}</span>
-                      <span style={{fontSize:12,fontWeight:800,color:C.ink}}>{s.title}</span>
-                    </div>
-                    <div style={{fontSize:10,color:C.inkLt,marginTop:2}}>{s.platform}{s.note&&` · ${s.note}`}</div>
-                  </div>
-                </div>
-                <Btn variant="neutral" small onClick={()=>setSec("schedule")}>→ 스케줄</Btn>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      </div>
-
-      {/* 🔴 광고 교체/컷 알림 */}
-      {cutAds.length>0&&(
-        <Card>
-          <CardTitle title="🔴 광고 교체 필요" sub="컷 기준 초과 — 즉시 검토"
-            action={<Btn variant="ghost" small onClick={()=>{setMarginInput(String(margin));setMarginModal(true)}}>⚙️ 마진 설정</Btn>}/>
-          {cutAds.map((ad,i)=>{
-            const adMargin = getAdMargin(ad.name, ad.campaign, margins, margin);
-            const s=adScore(ad, adMargin);
-            return(
-              <div key={i} style={{border:`1px solid ${C.bad}33`,borderRadius:12,padding:"12px 14px",marginBottom:8,background:"#FEF8F8"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:800,color:C.ink}}>{ad.name}</div>
-                    <div style={{fontSize:10,color:C.inkLt,marginTop:2}}>{ad.adset||ad.campaign}</div>
-                  </div>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                    {s.issues.map((issue,j)=>(
-                      <span key={j} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,
-                        color:issue.color,background:issue.bg,border:`1px solid ${issue.color}33`}}>
-                        {issue.icon} {issue.type} {issue.label}
-                        {issue.type==="LPV단가"&&` (₩${issue.cost})`}
-                        {issue.type==="LPV전환율"&&` (${issue.rate}%)`}
-                        {issue.type==="CPA"&&` (₩${issue.cpa?.toLocaleString()})`}
-                        {issue.type==="CTR"&&` (${issue.ctr}%)`}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:16,marginTop:10,flexWrap:"wrap"}}>
-                  {[
-                    {l:"광고비",   v:`₩${Math.round((ad.spend||0)/1000)}K`},
-                    {l:"LPV단가",  v:`₩${lpvCostStatus(ad.spend,ad.lpv)?.cost||"—"}`},
-                    {l:"LPV전환율",v:`${lpvRateStatus(ad.clicks,ad.lpv)?.rate||"—"}%`},
-                    {l:"CTR",      v:`${ctrStatus(ad.clicks||ad.clicksAll,ad.impressions)?.ctr||"—"}%`},
-                    ...(ad.purchases>0?[{l:"CPA",v:`₩${Math.round(ad.spend/ad.purchases).toLocaleString()}`}]:[]),
-                  ].map(({l,v})=>(
-                    <div key={l} style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.inkLt}}>{l}</div>
-                      <div style={{fontSize:12,fontWeight:800,color:C.ink}}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      {/* 🟡 광고 보류 알림 */}
-      {holdAds.length>0&&(
-        <Card>
-          <CardTitle title="🟡 광고 보류 검토" sub="성과 주의 — 모니터링 필요"/>
-          {holdAds.map((ad,i)=>{
-            const adMargin = getAdMargin(ad.name, ad.campaign, margins, margin);
-            const s=adScore(ad, adMargin);
-            return(
-              <div key={i} style={{border:`1px solid ${C.warn}33`,borderRadius:12,padding:"12px 14px",marginBottom:8,background:"#FFFBF0"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:700,color:C.ink}}>{ad.name}</div>
-                    <div style={{fontSize:10,color:C.inkLt,marginTop:2}}>{ad.adset||ad.campaign}</div>
-                  </div>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                    {s.issues.map((issue,j)=>(
-                      <span key={j} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,
-                        color:issue.color,background:issue.bg,border:`1px solid ${issue.color}33`}}>
-                        {issue.icon} {issue.type} {issue.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:16,marginTop:10,flexWrap:"wrap"}}>
-                  {[
-                    {l:"광고비",   v:`₩${Math.round((ad.spend||0)/1000)}K`},
-                    {l:"LPV단가",  v:`₩${lpvCostStatus(ad.spend,ad.lpv)?.cost||"—"}`},
-                    {l:"LPV전환율",v:`${lpvRateStatus(ad.clicks,ad.lpv)?.rate||"—"}%`},
-                    {l:"CTR",      v:`${ctrStatus(ad.clicks||ad.clicksAll,ad.impressions)?.ctr||"—"}%`},
-                    ...(ad.purchases>0?[{l:"CPA",v:`₩${Math.round(ad.spend/ad.purchases).toLocaleString()}`}]:[]),
-                  ].map(({l,v})=>(
-                    <div key={l} style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.inkLt}}>{l}</div>
-                      <div style={{fontSize:12,fontWeight:700,color:C.ink}}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-      )}
-
-      {/* 📦 발주임박 카드 */}
-      <Card>
-        <CardTitle title="📦 발주 임박 목록" sub={orderStatus==="ok"?`${orderRaw.length}개 상품`:"구글시트 연결 필요"}
-          action={
-            <div style={{display:"flex",gap:6}}>
-              {orderStatus==="ok"&&<Btn variant="sage" small onClick={()=>fetchOrderSheet(orderUrl)}>🔄</Btn>}
-              <Btn variant={orderStatus==="ok"?"neutral":"gold"} small onClick={()=>{setOrderInput(orderUrl);setOrderModal(true)}}>
-                {orderStatus==="ok"?"⚙️ 시트변경":"🔗 시트연결"}
-              </Btn>
-            </div>
-          }/>
-
-        {orderStatus==="idle"&&(
-          <div style={{textAlign:"center",padding:"28px 0",color:C.inkLt}}>
-            <div style={{fontSize:32,marginBottom:8}}>📋</div>
-            <div style={{fontSize:12,fontWeight:700,color:C.inkMid,marginBottom:8}}>발주임박목록 시트를 연결해주세요</div>
-            <div style={{fontSize:10,color:C.inkLt,marginBottom:14}}>구글시트 발주분석 파일의 📋발주임박목록 시트 URL</div>
-            <Btn onClick={()=>{setOrderInput("");setOrderModal(true)}}>🔗 지금 연결하기</Btn>
-          </div>
-        )}
-        {orderStatus==="loading"&&(
-          <div style={{textAlign:"center",padding:"24px",color:C.inkLt,fontSize:12}}>⏳ 불러오는 중...</div>
-        )}
-        {orderStatus==="error"&&(
-          <div style={{textAlign:"center",padding:"20px",color:C.bad,fontSize:11}}>
-            ❌ 시트 불러오기 실패 — 공유 설정(링크 있는 모든 사용자)을 확인해주세요
-            <br/><button onClick={()=>fetchOrderSheet(orderUrl)} style={{marginTop:8,padding:"5px 12px",borderRadius:6,border:`1px solid ${C.bad}`,background:"transparent",color:C.bad,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>다시 시도</button>
-          </div>
-        )}
-        {orderStatus==="ok"&&orderRaw.length===0&&(
-          <div style={{textAlign:"center",padding:"24px",color:C.inkLt,fontSize:11}}>✅ 현재 발주 임박 상품 없음</div>
-        )}
-        {orderStatus==="ok"&&orderRaw.length>0&&(
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:520}}>
-              <thead><tr style={{borderBottom:`2px solid ${C.border}`}}>
-                {["SKU명","조정후발주일","합산7일평균","현재고소진","총재고소진","발주판단"].map(h=>(
-                  <th key={h} style={{padding:"8px 8px",textAlign:h==="SKU명"?"left":"right",
-                    color:C.inkLt,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>{orderRaw.map((r,i)=>{
-                // 컬럼명 유연하게 읽기
-                // 헤더 정규화된 키로 매칭
-                const g=(...keys)=>{for(const k of keys){
-                  // 정확한 매칭
-                  if(r[k]!==undefined&&r[k]!=="") return r[k];
-                  // 줄바꿈 제거 후 매칭
-                  const rk=k.replace(/\n/g,"").replace(/\s+/g," ");
-                  const found=Object.keys(r).find(hk=>hk.replace(/\n/g,"").replace(/\s+/g," ")===rk);
-                  if(found&&r[found]!=="") return r[found];
-                }return "—";};
-                const name    = g("SKU명","상품명");
-                const minDate = g("최소발주일");
-                const adjDate = g("조정후발주일");
-                const orig    = g("원본1주평균");
-                const coupang = g("쿠팡7일평균");
-                const merged  = g("합산7일평균");
-                const exhaust = g("합산기준 현재고소진","현재고소진(합산)");
-                const totalEx = g("합산기준 총재고소진","총재고소진(합산)");
-                const judge   = g("발주판단");
-                const judgeColor = judge.includes("즉시")?C.bad:judge.includes("검토")?C.warn:judge.includes("모니터")?C.purple:C.good;
-                const judgeBg   = judge.includes("즉시")?"#FEF0F0":judge.includes("검토")?"#FFF8EC":judge.includes("모니터")?C.purpLt:C.goodLt;
-                if(!name||name==="—") return null;
-                return(
-                  <tr key={i} style={{borderBottom:`1px solid ${C.border}`}}
-                    onMouseEnter={e=>e.currentTarget.style.background=C.cream}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{padding:"10px 8px",fontWeight:700,color:C.ink,fontSize:11,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</td>
-                    <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:C.purple,fontSize:10,whiteSpace:"nowrap"}}>{adjDate}</td>
-                    <td style={{padding:"10px 8px",textAlign:"right",color:C.sage,fontWeight:800}}>{merged}</td>
-                    <td style={{padding:"10px 8px",textAlign:"right",color:C.inkMid,whiteSpace:"nowrap"}}>{exhaust}</td>
-                    <td style={{padding:"10px 8px",textAlign:"right",color:C.inkMid,whiteSpace:"nowrap"}}>{totalEx}</td>
-                    <td style={{padding:"10px 8px",textAlign:"right"}}>
-                      {judge!=="—"&&<span style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,
-                        color:judgeColor,background:judgeBg,border:`1px solid ${judgeColor}33`,whiteSpace:"nowrap"}}>{judge}</span>}
-                    </td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {/* 발주임박 시트 연결 모달 */}
-      {orderModal&&(
-        <Modal title="📦 발주임박 시트 연결" onClose={()=>setOrderModal(false)} wide>
-          <div style={{background:C.sageLt,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:11,color:C.sage,fontWeight:700}}>
-            💡 구글시트 발주분석 파일의 <b>📋발주임박목록</b> 시트 URL을 붙여넣으세요<br/>
-            <span style={{fontWeight:400,color:C.inkMid}}>시트 공유 설정 → "링크 있는 모든 사용자" → 뷰어 권한</span>
-          </div>
-          <div style={{fontSize:10,color:C.inkLt,marginBottom:6,fontWeight:700}}>URL 복사 방법</div>
-          <div style={{background:C.cream,borderRadius:8,padding:"10px 12px",fontSize:10,color:C.inkMid,marginBottom:14,lineHeight:1.8}}>
-            1. 구글시트에서 <b>📋발주임박목록</b> 시트 탭 클릭<br/>
-            2. 주소창 URL 전체 복사 (gid=숫자 포함)<br/>
-            3. 아래에 붙여넣기
-          </div>
-          <FR label="구글시트 URL">
-            <Inp value={orderInput} onChange={setOrderInput} placeholder="https://docs.google.com/spreadsheets/d/..."/>
-          </FR>
-          <Btn onClick={()=>{
-            const url=orderInput.trim();
-            setOrderUrl(url);
-            setOrderModal(false);
-            if(url) fetchOrderSheet(url);
-          }} style={{width:"100%",marginTop:8}}>🔗 연결하기</Btn>
-        </Modal>
-      )}
-
-      {/* 마진 설정 모달 */}
-      {marginModal&&(
-        <Modal title="⚙️ 마진 설정" onClose={()=>setMarginModal(false)} wide>
-          {/* 안내 */}
-          <div style={{background:C.goldLt,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:11,color:C.gold,fontWeight:700}}>
-            💡 광고명에 키워드가 포함되면 해당 마진이 자동 적용돼요<br/>
-            <span style={{fontWeight:400,color:C.inkMid}}>마진 이하 → 유지 / 마진 근접(85~100%) → 보류 / 마진 초과 → 컷</span>
-          </div>
-
-          {/* 기본 마진 */}
-          <FR label="기본 마진 (키워드 미매칭 시 적용)">
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <Inp type="number" value={marginInput} onChange={setMarginInput} placeholder="30000" style={{flex:1}}/>
-              <span style={{fontSize:11,color:C.inkMid,whiteSpace:"nowrap"}}>원</span>
-            </div>
-          </FR>
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            {[15000,20000,30000,50000].map(v=>(
-              <button key={v} onClick={()=>setMarginInput(String(v))}
-                style={{flex:1,padding:"7px 4px",borderRadius:8,border:`1px solid ${C.border}`,
-                  background:marginInput==String(v)?C.rose:C.cream,
-                  color:marginInput==String(v)?C.white:C.inkMid,
-                  fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                ₩{(v/1000)}만
-              </button>
-            ))}
-          </div>
-
-          {/* 키워드별 마진 목록 */}
-          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginBottom:12}}>
-            <div style={{fontSize:12,fontWeight:800,color:C.ink,marginBottom:10}}>키워드별 마진</div>
-            {margins.map((m)=>(
-              <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,
-                padding:"10px 12px",background:C.cream,borderRadius:10,border:`1px solid ${C.border}`}}>
-                {editingMargin?.id===m.id ? (
-                  <>
-                    <Inp value={editingMargin.keyword} onChange={v=>setEditingMargin(e=>({...e,keyword:v}))}
-                      placeholder="키워드" style={{flex:1}}/>
-                    <Inp type="number" value={editingMargin.margin} onChange={v=>setEditingMargin(e=>({...e,margin:v}))}
-                      placeholder="마진" style={{width:100}}/>
-                    <span style={{fontSize:10,color:C.inkMid}}>원</span>
-                    <Btn small onClick={()=>{
-                      setMargins(margins.map(x=>x.id===m.id?{...x,keyword:editingMargin.keyword,margin:+editingMargin.margin||0}:x));
-                      setEditingMargin(null);
-                    }}>✓</Btn>
-                    <Btn small variant="neutral" onClick={()=>setEditingMargin(null)}>✕</Btn>
-                  </>
-                ) : (
-                  <>
-                    <div style={{flex:1}}>
-                      <span style={{fontSize:12,fontWeight:700,color:C.ink,background:C.blush,
-                        padding:"2px 10px",borderRadius:20,border:`1px solid ${C.rose}33`}}>{m.keyword}</span>
-                    </div>
-                    <span style={{fontSize:13,fontWeight:800,color:C.rose}}>₩{(+m.margin||0).toLocaleString()}</span>
-                    <span style={{fontSize:10,color:C.inkLt}}>원</span>
-                    <Btn small variant="neutral" onClick={()=>setEditingMargin({...m})}>✏️</Btn>
-                    <Btn small variant="danger" onClick={()=>setMargins(margins.filter(x=>x.id!==m.id))}>🗑</Btn>
-                  </>
-                )}
-              </div>
-            ))}
-
-            {/* 새 키워드 추가 */}
-            <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,
-              padding:"10px 12px",background:C.sageLt,borderRadius:10,border:`1px dashed ${C.sage}66`}}>
-              <Inp value={newKeyword} onChange={setNewKeyword} placeholder="키워드 (예: 프리온)" style={{flex:1}}/>
-              <Inp type="number" value={newMarginVal} onChange={setNewMarginVal} placeholder="마진" style={{width:100}}/>
-              <span style={{fontSize:10,color:C.inkMid,whiteSpace:"nowrap"}}>원</span>
-              <Btn small variant="sage" onClick={()=>{
-                if(!newKeyword||!newMarginVal) return;
-                setMargins([...margins,{id:Date.now(),keyword:newKeyword,margin:+newMarginVal}]);
-                setNewKeyword(""); setNewMarginVal("");
-              }}>+ 추가</Btn>
-            </div>
-          </div>
-
-          <Btn onClick={()=>{setMargin(+marginInput||30000);setMarginModal(false);}} style={{width:"100%"}}>💾 저장</Btn>
-        </Modal>
-      )}
-
-      {totalAlerts===0&&!holdAds.length&&(
-        <div style={{textAlign:"center",padding:"52px 0",color:C.inkLt}}>
-          <div style={{fontSize:52,marginBottom:12}}>✨</div>
-          <div style={{fontSize:14,fontWeight:700,color:C.inkMid}}>모든 항목 정상</div>
-          <div style={{fontSize:11,marginTop:4}}>위험 재고·미입력·기간초과 없음</div>
-        </div>
-      )}
-
-      {/* 인사이트 입력 모달 (홈에서도 접근) */}
-    </div>
-  );
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 📣 메타광고
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const MetaSection=(()=>{
-    const d = metaAgg;
-    const fmt=n=>n>=1000?`₩${Math.round(n/1000).toLocaleString()}K`:`₩${Math.round(n).toLocaleString()}`;
-
-    const metaKpi = d ? [
-      {label:"총 광고비",  value:fmt(d.totalSpend),   change:0, good:"high",icon:"💸",note:`${d.daily.length}일 집계`},
-      {label:"총 클릭수",  value:d.totalClicks.toLocaleString(), change:0,good:"high",icon:"👆",note:`일평균 ${Math.round(d.totalClicks/Math.max(d.daily.length,1)).toLocaleString()}`},
-      {label:"LPV",        value:d.totalLpv.toLocaleString(),    change:0,good:"high",icon:"🛬",note:`LPV율 ${d.lpvRate.toFixed(1)}%`},
-      {label:"CPA",        value:fmt(d.avgCpa),        change:0, good:"low", icon:"🎯",note:"전환당 비용"},
-      {label:"CPC",        value:`₩${Math.round(d.avgCpc).toLocaleString()}`, change:0,good:"low",icon:"💡",note:"클릭당 비용"},
-      {label:"평균 CTR",   value:`${d.avgCtr.toFixed(2)}%`, change:0,good:"high",icon:"📊",note:"클릭률"},
+    const kpis = d ? [
+      { label: "총 광고비",  value: fmt(d.totalSpend),                      note: `${d.daily.length}일`,            accentColor: C.bad },
+      { label: "클릭수",     value: d.totalClicks.toLocaleString(),          note: `CPC ${fmt(d.avgCpc)}`,           accentColor: C.accent },
+      { label: "LPV",       value: d.totalLpv.toLocaleString(),             note: `전환율 ${d.lpvRate.toFixed(1)}%`, accentColor: C.blue },
+      { label: "구매",       value: `${d.totalPurchases}건`,                 note: d.totalConvVal > 0 ? `전환값 ${fmt(d.totalConvVal)}` : "", accentColor: C.good },
+      { label: "ROAS",      value: d.roas > 0 ? `${d.roas.toFixed(2)}x` : "—", note: "전환값 ÷ 광고비",             accentColor: C.purple },
+      { label: "평균 CTR",  value: `${d.avgCtr.toFixed(2)}%`,               note: "클릭률",                         accentColor: C.warn },
     ] : [
-      {label:"광고비",value:"—",change:0,good:"high",icon:"💸",note:"시트 연결 필요"},
-      {label:"클릭수",value:"—",change:0,good:"high",icon:"👆",note:"시트 연결 필요"},
-      {label:"LPV",   value:"—",change:0,good:"high",icon:"🛬",note:"시트 연결 필요"},
-      {label:"CPA",   value:"—",change:0,good:"low", icon:"🎯",note:"시트 연결 필요"},
-      {label:"CPC",   value:"—",change:0,good:"low", icon:"💡",note:"시트 연결 필요"},
-      {label:"CTR",   value:"—",change:0,good:"high",icon:"📊",note:"시트 연결 필요"},
+      { label: "총 광고비",  value: "—", note: "시트 연결 필요", accentColor: C.bad },
+      { label: "클릭수",     value: "—", note: "시트 연결 필요", accentColor: C.accent },
+      { label: "LPV",       value: "—", note: "시트 연결 필요", accentColor: C.blue },
+      { label: "구매",       value: "—", note: "시트 연결 필요", accentColor: C.good },
+      { label: "ROAS",      value: "—", note: "시트 연결 필요", accentColor: C.purple },
+      { label: "평균 CTR",  value: "—", note: "시트 연결 필요", accentColor: C.warn },
     ];
 
-    return(
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-        {/* 구글 시트 연결 배너 */}
+        {/* 광고 알림 배너 */}
+        {(cutAds.length > 0 || holdAds.length > 0) && (
+          <div style={{ display: "flex", gap: 10 }}>
+            {cutAds.length > 0 && (
+              <div style={{ flex: 1, background: C.badLt, border: `1px solid ${C.bad}33`, borderRadius: 14, padding: "12px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.bad }}>교체 필요 {cutAds.length}개</div>
+                <div style={{ fontSize: 11, color: C.bad, opacity: 0.7, marginTop: 2 }}>즉시 검토 필요</div>
+              </div>
+            )}
+            {holdAds.length > 0 && (
+              <div style={{ flex: 1, background: C.warnLt, border: `1px solid ${C.warn}33`, borderRadius: 14, padding: "12px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.warn }}>보류 검토 {holdAds.length}개</div>
+                <div style={{ fontSize: 11, color: C.warn, opacity: 0.7, marginTop: 2 }}>모니터링 필요</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 시트 연결 상태 */}
         <div style={{
-          background: hasSheet ? "#EDF7F1" : C.goldLt,
-          border:`1px solid ${hasSheet?C.good+"55":C.gold+"66"}`,
-          borderRadius:12,padding:"12px 16px",
-          display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",
+          background: C.white, border: `1px solid ${hasSheet ? C.good + "66" : C.border}`,
+          borderRadius: 14, padding: "14px 16px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap"
         }}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:20}}>📊</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: hasSheet ? C.good : metaStatus === "loading" ? C.warn : metaStatus === "error" ? C.bad : C.inkLt,
+              flexShrink: 0
+            }} />
             <div>
-              {hasSheet ? (
-                <>
-                  <div style={{fontSize:12,fontWeight:800,color:C.good}}>구글 시트 연결됨 · {metaRaw.length}행 로드{deletedAds.length>0&&<span style={{color:C.inkLt,fontWeight:600}}> ({deletedAds.length}개 숨김)</span>}</div>
-                  <div style={{fontSize:10,color:C.inkMid,marginTop:1}}>마지막 업데이트: 방금</div>
-                </>
-              ) : metaStatus==="loading" ? (
-                <div style={{fontSize:12,fontWeight:700,color:C.gold}}>⏳ 시트 불러오는 중...</div>
-              ) : metaStatus==="error" ? (
-                <div>
-                  <div style={{fontSize:12,fontWeight:800,color:C.bad}}>연결 실패 — {metaError}</div>
-                  <div style={{fontSize:10,color:C.inkMid,marginTop:1}}>시트 공유 설정을 확인하세요</div>
-                </div>
-              ) : (
-                <>
-                  <div style={{fontSize:12,fontWeight:800,color:C.gold}}>구글 시트를 연결하면 자동으로 데이터를 읽어요</div>
-                  <div style={{fontSize:10,color:C.inkMid,marginTop:1}}>메타 광고관리자에서 복붙 → 시트에 저장 → 대시보드 자동 반영</div>
-                </>
-              )}
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>
+                {hasSheet ? `구글 시트 연결됨 · ${metaRaw.length}행` : metaStatus === "loading" ? "불러오는 중..." : metaStatus === "error" ? "연결 실패" : "시트 미연결"}
+              </div>
+              {deletedAds.length > 0 && <div style={{ fontSize: 11, color: C.inkLt, marginTop: 1 }}>{deletedAds.length}개 숨김</div>}
             </div>
           </div>
-          <div style={{display:"flex",gap:6}}>
-            {hasSheet&&<Btn variant="sage" small onClick={()=>fetchSheet(sheetUrl)}>🔄 새로고침</Btn>}
-            {deletedAds.length>0&&<Btn variant="neutral" small onClick={()=>{setDeletedAds([]);try{localStorage.removeItem("oa_deleted_ads");}catch{}}}>↩ 숨긴 광고 복원 ({deletedAds.length})</Btn>}
-            <Btn variant={hasSheet?"neutral":"gold"} small onClick={()=>{setSheetInput(sheetUrl);setSheetModal(true)}}>
-              {hasSheet?"⚙️ 시트 변경":"🔗 시트 연결"}
+          <div style={{ display: "flex", gap: 8 }}>
+            {hasSheet && <Btn variant="good" small onClick={() => fetchSheet(sheetUrl)}>새로고침</Btn>}
+            {deletedAds.length > 0 && (
+              <Btn variant="neutral" small onClick={() => { setDeletedAds([]); try { localStorage.removeItem("oa_deleted_ads"); } catch {} }}>
+                숨김 복원 ({deletedAds.length})
+              </Btn>
+            )}
+            <Btn variant={hasSheet ? "neutral" : "primary"} small onClick={() => setSec("metaSettings")}>
+              {hasSheet ? "설정" : "시트 연결"}
             </Btn>
           </div>
         </div>
 
-        <KpiGrid items={metaKpi} cols={6}/>
+        {/* KPI */}
+        <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+          {kpis.map((k, i) => <KpiCard key={i} {...k} />)}
+        </div>
 
         {/* 탭 */}
-        <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:2}}>
-          {[{id:"overview",label:"📈 추이"},{id:"campaign",label:"📣 캠페인"}].map(t=>(
-            <button key={t.id} onClick={()=>setMetaTab(t.id)} style={{
-              padding:"6px 16px",borderRadius:8,cursor:"pointer",border:`1px solid ${metaTab===t.id?C.rose:C.border}`,
-              background:metaTab===t.id?C.blush:C.white,color:metaTab===t.id?C.rose:C.inkMid,
-              fontSize:11,fontWeight:700,whiteSpace:"nowrap",transition:"all 0.2s",fontFamily:"inherit"}}>{t.label}</button>
+        <div style={{ display: "flex", gap: 0, background: C.bg, borderRadius: 12, padding: 4, width: "fit-content" }}>
+          {[{ id: "overview", label: "추이" }, { id: "campaign", label: "캠페인" }, { id: "alert", label: `판단 ${cutAds.length + holdAds.length > 0 ? `(${cutAds.length + holdAds.length})` : ""}` }].map(t => (
+            <button key={t.id} onClick={() => setMetaTab(t.id)} style={{
+              padding: "7px 18px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: FONT,
+              fontSize: 12, fontWeight: 600,
+              background: metaTab === t.id ? C.white : "transparent",
+              color: metaTab === t.id ? C.ink : C.inkLt,
+              boxShadow: metaTab === t.id ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+              transition: "all 0.15s"
+            }}>{t.label}</button>
           ))}
         </div>
 
         {/* 추이 탭 */}
-        {metaTab==="overview"&&(
+        {metaTab === "overview" && (
           <>
-            {!hasSheet&&(
-              <div style={{textAlign:"center",padding:"40px 0",color:C.inkLt}}>
-                <div style={{fontSize:36,marginBottom:10}}>📊</div>
-                <div style={{fontSize:13,fontWeight:700,color:C.inkMid}}>구글 시트를 연결해주세요</div>
-                <div style={{fontSize:11,marginTop:4,marginBottom:16}}>메타 광고관리자 데이터를 시트에 붙여넣으면 자동으로 차트가 그려져요</div>
-                <Btn onClick={()=>{setSheetInput(sheetUrl);setSheetModal(true)}}>🔗 지금 연결하기</Btn>
-              </div>
-            )}
-            {hasSheet&&d&&(<>
-              <Card>
-                <CardTitle title="클릭수 vs LPV 일별 추이" sub="클릭 대비 랜딩 도달 흐름"/>
-                <ResponsiveContainer width="100%" height={190}>
-                  <AreaChart data={d.daily}>
-                    <defs>
-                      <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={C.rose} stopOpacity={0.2}/><stop offset="95%" stopColor={C.rose} stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={C.sage} stopOpacity={0.2}/><stop offset="95%" stopColor={C.sage} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-                    <XAxis dataKey="day" tick={{fontSize:9,fill:C.inkLt}} axisLine={false} tickLine={false} interval={Math.floor(d.daily.length/7)}/>
-                    <YAxis tick={{fontSize:9,fill:C.inkLt}} axisLine={false} tickLine={false}/>
-                    <Tooltip content={<BeautyTooltip/>}/>
-                    <Area type="monotone" dataKey="clicks" stroke={C.rose} strokeWidth={2.5} fill="url(#cg)" name="클릭수"/>
-                    <Area type="monotone" dataKey="lpv"    stroke={C.sage} strokeWidth={2}   fill="url(#lg)" name="LPV"/>
-                  </AreaChart>
-                </ResponsiveContainer>
-                <div style={{display:"flex",gap:16,justifyContent:"flex-end",marginTop:8}}>
-                  {[{c:C.rose,l:"클릭수"},{c:C.sage,l:"LPV"}].map(({c,l})=>(
-                    <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:C.inkMid}}>
-                      <div style={{width:14,height:3,background:c,borderRadius:2}}/>{l}
+            {!hasSheet ? (
+              <Card style={{ textAlign: "center", padding: "48px 20px" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 6 }}>구글 시트를 연결해주세요</div>
+                <div style={{ fontSize: 13, color: C.inkLt, marginBottom: 20 }}>메타 광고관리자 데이터를 시트에 붙여넣으면 차트가 자동으로 그려져요</div>
+                <Btn onClick={() => setSec("metaSettings")}>시트 연결하기</Btn>
+              </Card>
+            ) : d && (
+              <>
+                <Card>
+                  <CardTitle title="클릭 · LPV 추이" sub="일별 클릭 대비 랜딩 도달" />
+                  <ResponsiveContainer width="100%" height={180}>
+                    <AreaChart data={d.daily}>
+                      <defs>
+                        <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={C.accent} stopOpacity={0.15} /><stop offset="95%" stopColor={C.accent} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={C.good} stopOpacity={0.15} /><stop offset="95%" stopColor={C.good} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: C.inkLt }} axisLine={false} tickLine={false} interval={Math.floor(d.daily.length / 7)} />
+                      <YAxis tick={{ fontSize: 10, fill: C.inkLt }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Area type="monotone" dataKey="clicks" stroke={C.accent} strokeWidth={2} fill="url(#g1)" name="클릭수" />
+                      <Area type="monotone" dataKey="lpv"    stroke={C.good}   strokeWidth={2} fill="url(#g2)" name="LPV" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "flex", gap: 16, justifyContent: "flex-end", marginTop: 8 }}>
+                    {[{ c: C.accent, l: "클릭수" }, { c: C.good, l: "LPV" }].map(({ c, l }) => (
+                      <div key={l} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.inkLt }}>
+                        <div style={{ width: 12, height: 3, background: c, borderRadius: 2 }} />{l}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                <div className="chart-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Card>
+                    <CardTitle title="일별 광고비" sub="소진 패턴" />
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={d.daily}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                        <XAxis dataKey="day" tick={{ fontSize: 9, fill: C.inkLt }} axisLine={false} tickLine={false} interval={Math.floor(d.daily.length / 5)} />
+                        <YAxis tick={{ fontSize: 9, fill: C.inkLt }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Bar dataKey="spend" fill={C.accent} radius={[4, 4, 0, 0]} name="광고비(₩)" opacity={0.8} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                  <Card>
+                    <CardTitle title="CTR 추이" sub="일별 클릭률" />
+                    <ResponsiveContainer width="100%" height={140}>
+                      <AreaChart data={d.daily}>
+                        <defs>
+                          <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={C.warn} stopOpacity={0.15} /><stop offset="95%" stopColor={C.warn} stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                        <XAxis dataKey="day" tick={{ fontSize: 9, fill: C.inkLt }} axisLine={false} tickLine={false} interval={Math.floor(d.daily.length / 5)} />
+                        <YAxis tick={{ fontSize: 9, fill: C.inkLt }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Area type="monotone" dataKey="ctr" stroke={C.warn} strokeWidth={2} fill="url(#g3)" name="CTR(%)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
+
+                {/* LPV 전환율 요약 */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  {[
+                    { label: "LPV 전환율", value: `${d.lpvRate.toFixed(1)}%`, note: "클릭 → 랜딩 도달", color: d.lpvRate >= 70 ? C.good : d.lpvRate >= 50 ? C.warn : C.bad },
+                    { label: "평균 CPC", value: `₩${Math.round(d.avgCpc).toLocaleString()}`, note: "클릭당 비용", color: C.ink },
+                    { label: "총 캠페인", value: `${d.ads.length}개`, note: `전환 ${d.convAds.length} · 트래픽 ${d.trafficAds.length}`, color: C.ink },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                      <div style={{ fontSize: 11, color: C.inkLt, fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: s.color, letterSpacing: "-0.02em" }}>{s.value}</div>
+                      <div style={{ fontSize: 11, color: C.inkLt, marginTop: 3 }}>{s.note}</div>
                     </div>
                   ))}
                 </div>
-              </Card>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                <Card>
-                  <CardTitle title="일별 광고비" sub="소진 패턴"/>
-                  <ResponsiveContainer width="100%" height={140}>
-                    <BarChart data={d.daily}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-                      <XAxis dataKey="day" tick={{fontSize:8,fill:C.inkLt}} axisLine={false} tickLine={false} interval={Math.floor(d.daily.length/5)}/>
-                      <YAxis tick={{fontSize:8,fill:C.inkLt}} axisLine={false} tickLine={false}/>
-                      <Tooltip content={<BeautyTooltip/>}/>
-                      <Bar dataKey="spend" fill={C.roseLt} radius={[3,3,0,0]} name="광고비(₩)"/>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Card>
-                <Card>
-                  <CardTitle title="CTR 추이" sub="일별 클릭률"/>
-                  <ResponsiveContainer width="100%" height={140}>
-                    <AreaChart data={d.daily}>
-                      <defs>
-                        <linearGradient id="ctrg" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={C.gold} stopOpacity={0.25}/><stop offset="95%" stopColor={C.gold} stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-                      <XAxis dataKey="day" tick={{fontSize:8,fill:C.inkLt}} axisLine={false} tickLine={false} interval={Math.floor(d.daily.length/5)}/>
-                      <YAxis tick={{fontSize:8,fill:C.inkLt}} axisLine={false} tickLine={false}/>
-                      <Tooltip content={<BeautyTooltip/>}/>
-                      <Area type="monotone" dataKey="ctr" stroke={C.gold} strokeWidth={2} fill="url(#ctrg)" name="CTR(%)"/>
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </Card>
-              </div>
-              <div style={{background:`linear-gradient(135deg,${C.blush},${C.white})`,
-                border:`1px solid ${C.rose}33`,borderRadius:14,padding:"16px",
-                display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-                <div>
-                  <div style={{fontSize:10,color:C.rose,fontWeight:700,letterSpacing:"0.1em"}}>CLICK → LPV 전환율</div>
-                  <div style={{fontSize:32,fontWeight:900,color:C.rose,lineHeight:1.1}}>{d.lpvRate.toFixed(1)}%</div>
-                  <div style={{fontSize:10,color:C.inkMid}}>{d.totalClicks.toLocaleString()} 클릭 → {d.totalLpv.toLocaleString()} 랜딩 도달</div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:10,color:C.inkLt}}>평균 CPC</div>
-                  <div style={{fontSize:22,fontWeight:900,color:C.gold}}>₩{Math.round(d.avgCpc).toLocaleString()}</div>
-                  <div style={{fontSize:10,color:C.inkLt}}>총 {d.campaigns.length}개 캠페인</div>
-                </div>
-              </div>
-            </>)}
+              </>
+            )}
           </>
         )}
 
         {/* 캠페인 탭 */}
-        {metaTab==="campaign"&&(
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            {!hasSheet&&(
-              <div style={{textAlign:"center",padding:"40px 0",color:C.inkLt}}>
-                <div style={{fontSize:36,marginBottom:10}}>📣</div>
-                <div style={{fontSize:13,fontWeight:700,color:C.inkMid}}>시트 연결 후 캠페인 데이터가 표시됩니다</div>
-                <div style={{fontSize:11,marginTop:4,marginBottom:16}}>캠페인 목적(전환/트래픽)에 따라 자동 분류돼요</div>
-                <Btn onClick={()=>{setSheetInput(sheetUrl);setSheetModal(true)}}>🔗 지금 연결하기</Btn>
-              </div>
-            )}
-            {hasSheet&&d&&(<>
-              <div style={{display:"flex",gap:4,padding:"4px",background:C.cream,borderRadius:12,width:"fit-content"}}>
-                {[{id:"conversion",label:"🛒 전환 캠페인"},{id:"traffic",label:"🚀 트래픽 캠페인"}].map(t=>(
-                  <button key={t.id} onClick={()=>setCampTab(t.id)} style={{
-                    padding:"7px 16px",borderRadius:9,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"inherit",
-                    background:campTab===t.id?C.white:"transparent",color:campTab===t.id?C.ink:C.inkMid,
-                    boxShadow:campTab===t.id?"0 2px 8px rgba(43,31,46,0.1)":"none",transition:"all 0.2s"}}>{t.label}</button>
-                ))}
-              </div>
+        {metaTab === "campaign" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!hasSheet ? (
+              <Card style={{ textAlign: "center", padding: "48px 20px" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📣</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 16 }}>시트 연결 후 캠페인 데이터가 표시됩니다</div>
+                <Btn onClick={() => setSec("metaSettings")}>시트 연결하기</Btn>
+              </Card>
+            ) : d && (
+              <>
+                <div style={{ display: "flex", gap: 0, background: C.bg, borderRadius: 10, padding: 3, width: "fit-content" }}>
+                  {[{ id: "conversion", label: "전환 캠페인" }, { id: "traffic", label: "트래픽 캠페인" }].map(t => (
+                    <button key={t.id} onClick={() => setCampTab(t.id)} style={{
+                      padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: FONT,
+                      fontSize: 12, fontWeight: 600,
+                      background: campTab === t.id ? C.white : "transparent",
+                      color: campTab === t.id ? C.ink : C.inkLt,
+                      boxShadow: campTab === t.id ? "0 2px 6px rgba(0,0,0,0.07)" : "none",
+                      transition: "all 0.15s"
+                    }}>{t.label}</button>
+                  ))}
+                </div>
 
-              {(()=>{
-                const camps = campTab==="conversion" ? d.convCamps : d.trafficCamps;
-                if(!camps||camps.length===0) return(
-                  <div style={{textAlign:"center",padding:"32px",color:C.inkLt,fontSize:12}}>
-                    해당 목적의 캠페인 데이터가 없습니다<br/>
-                    <span style={{fontSize:10,marginTop:4,display:"block"}}>시트의 "캠페인_목적" 컬럼을 확인해주세요</span>
-                  </div>
-                );
-                return(
-                  <>
-                    {(()=>{
-                      const totalSpend = camps.reduce((s,c)=>s+(c.spend||0),0);
-                      const totalPurch = camps.reduce((s,c)=>s+(c.purchases||0),0);
-                      const totalConvV = camps.reduce((s,c)=>s+(c.convValue||0),0);
-                      const totalClicks= camps.reduce((s,c)=>s+(c.clicks||0),0);
-                      const totalLpv   = camps.reduce((s,c)=>s+(c.lpv||0),0);
-                      const avgCtr     = camps.length ? camps.reduce((s,c)=>s+(c.ctr||0),0)/camps.length : 0;
-                      const summaryItems = campTab==="conversion" ? [
-                        {label:"전환 광고비",  value:`₩${Math.round(totalSpend/1000).toLocaleString()}K`,      color:C.rose},
-                        {label:"총 구매",      value:`${totalPurch}건`,                                         color:C.good},
-                        {label:"총 전환값",    value:`₩${Math.round(totalConvV/1000).toLocaleString()}K`,      color:C.purple},
-                        {label:"평균 CPA",     value:totalPurch>0?`₩${Math.round(totalSpend/totalPurch).toLocaleString()}`:"—", color:C.gold},
-                        {label:"전체 ROAS",    value:totalSpend>0?`${+(totalConvV/totalSpend).toFixed(2)}x`:"—", color:C.sage},
-                        {label:"총 광고수",    value:`${camps.length}개`,                                       color:C.inkMid},
-                      ] : [
-                        {label:"트래픽 광고비",value:`₩${Math.round(totalSpend/1000).toLocaleString()}K`,      color:C.purple},
-                        {label:"총 클릭수",    value:totalClicks.toLocaleString(),                               color:C.good},
-                        {label:"총 LPV",       value:totalLpv.toLocaleString(),                                  color:C.sage},
-                        {label:"평균 CPC",     value:totalClicks>0?`₩${Math.round(totalSpend/totalClicks).toLocaleString()}`:"—", color:C.gold},
-                        {label:"평균 CTR",     value:`${avgCtr.toFixed(2)}%`,                                   color:C.rose},
-                        {label:"총 광고수",    value:`${camps.length}개`,                                       color:C.inkMid},
-                      ];
-                      return(
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-                          {summaryItems.map((s,i)=>(
-                            <div key={i} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
-                              <div style={{fontSize:9,color:C.inkLt,fontWeight:700,letterSpacing:"0.1em"}}>{s.label}</div>
-                              <div style={{fontSize:18,fontWeight:900,color:s.color,marginTop:4}}>{s.value}</div>
-                            </div>
-                          ))}
+                {(() => {
+                  const camps = campTab === "conversion" ? d.convAds : d.trafficAds;
+                  if (!camps || camps.length === 0) return (
+                    <Card style={{ textAlign: "center", padding: "32px" }}>
+                      <div style={{ fontSize: 13, color: C.inkLt }}>해당 유형의 캠페인 데이터가 없습니다</div>
+                    </Card>
+                  );
+
+                  const totalSpend  = camps.reduce((s, c) => s + c.spend, 0);
+                  const totalPurch  = camps.reduce((s, c) => s + c.purchases, 0);
+                  const totalConvV  = camps.reduce((s, c) => s + c.convValue, 0);
+                  const totalClicks = camps.reduce((s, c) => s + c.clicks, 0);
+                  const totalLpv    = camps.reduce((s, c) => s + c.lpv, 0);
+                  const avgCtr      = camps.length ? camps.reduce((s, c) => s + c.ctr, 0) / camps.length : 0;
+
+                  const summaries = campTab === "conversion" ? [
+                    { label: "광고비",  value: `₩${Math.round(totalSpend / 1000).toLocaleString()}K` },
+                    { label: "구매",    value: `${totalPurch}건` },
+                    { label: "전환값",  value: `₩${Math.round(totalConvV / 1000).toLocaleString()}K` },
+                    { label: "ROAS",   value: totalSpend > 0 ? `${+(totalConvV / totalSpend).toFixed(2)}x` : "—" },
+                    { label: "CPA",    value: totalPurch > 0 ? `₩${Math.round(totalSpend / totalPurch).toLocaleString()}` : "—" },
+                  ] : [
+                    { label: "광고비",  value: `₩${Math.round(totalSpend / 1000).toLocaleString()}K` },
+                    { label: "클릭",   value: totalClicks.toLocaleString() },
+                    { label: "LPV",   value: totalLpv.toLocaleString() },
+                    { label: "CPC",   value: totalClicks > 0 ? `₩${Math.round(totalSpend / totalClicks).toLocaleString()}` : "—" },
+                    { label: "CTR",   value: `${avgCtr.toFixed(2)}%` },
+                  ];
+
+                  return (
+                    <>
+                      <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
+                        {summaries.map((s, i) => (
+                          <div key={i} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", textAlign: "center", minWidth: 100, flex: "0 0 auto" }}>
+                            <div style={{ fontSize: 10, color: C.inkLt, fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>{s.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Card style={{ padding: 0, overflow: "hidden" }}>
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ borderBottom: `1px solid ${C.border}`, background: C.bg }}>
+                                {(campTab === "conversion"
+                                  ? ["광고명", "광고세트", "광고비", "구매", "전환값", "CPA", "ROAS", "LPV율", ""]
+                                  : ["광고명", "광고세트", "광고비", "클릭", "LPV", "CPC", "CTR", "LPV율", ""]
+                                ).map((h, i) => (
+                                  <th key={i} style={{ padding: "12px 12px", textAlign: i === 0 || i === 1 ? "left" : "right", color: C.inkLt, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {camps.map((c, i) => {
+                                const m = getAdMargin(c.name, c.campaign, margins, margin);
+                                const lpvC = lpvCostStatus(c.spend, c.lpv, criteria);
+                                const cpaJ = criteria.use_roas ? roasStatus(c.convValue, c.spend, criteria) : cpaStatus(c.spend, c.purchases, m, criteria);
+                                const ctrJ = ctrStatus(c.clicks, c.impressions, criteria);
+                                return (
+                                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}
+                                    onMouseEnter={e => e.currentTarget.style.background = C.bg}
+                                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                    <td style={{ padding: "12px 12px", maxWidth: 200 }}>
+                                      <div style={{ fontWeight: 600, color: C.ink, fontSize: 12, wordBreak: "break-all", marginBottom: 4 }}>{c.name}</div>
+                                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                        {lpvC && <StatusBadge label={`LPV ${lpvC.label}`} color={lpvC.color} bg={lpvC.bg} />}
+                                        {cpaJ && <StatusBadge label={`${criteria.use_roas ? "ROAS" : "CPA"} ${cpaJ.label}`} color={cpaJ.color} bg={cpaJ.bg} />}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: "12px 12px", maxWidth: 140 }}>
+                                      <div style={{ fontSize: 11, color: C.inkLt, wordBreak: "break-all" }}>{c.adset || "—"}</div>
+                                    </td>
+                                    <td style={{ padding: "12px 12px", textAlign: "right", color: C.inkMid }}>₩{Math.round(c.spend / 1000).toLocaleString()}K</td>
+                                    {campTab === "conversion" ? (
+                                      <>
+                                        <td style={{ padding: "12px 12px", textAlign: "right", fontWeight: 700, color: c.purchases > 0 ? C.good : C.inkLt }}>{c.purchases || "—"}</td>
+                                        <td style={{ padding: "12px 12px", textAlign: "right", color: C.inkMid }}>{c.convValue > 0 ? `₩${Math.round(c.convValue / 1000).toLocaleString()}K` : "—"}</td>
+                                        <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                                          {c.cpa > 0 ? <StatusBadge label={`₩${c.cpa.toLocaleString()}`} color={cpaJ?.color || C.inkMid} bg={cpaJ?.bg || C.bg} /> : <span style={{ color: C.inkLt }}>—</span>}
+                                        </td>
+                                        <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                                          {c.roas > 0 ? <StatusBadge label={`${c.roas}x`} color={c.roas >= criteria.roas_great ? C.good : c.roas >= criteria.roas_keep ? C.accent : C.warn} bg={c.roas >= criteria.roas_great ? C.goodLt : c.roas >= criteria.roas_keep ? C.accentLt : C.warnLt} /> : <span style={{ color: C.inkLt }}>—</span>}
+                                        </td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td style={{ padding: "12px 12px", textAlign: "right", color: C.inkMid }}>{c.clicks.toLocaleString()}</td>
+                                        <td style={{ padding: "12px 12px", textAlign: "right", color: C.inkMid }}>{c.lpv.toLocaleString()}</td>
+                                        <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                                          <StatusBadge label={`₩${c.cpc}`} color={C.inkMid} bg={C.bg} />
+                                        </td>
+                                        <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                                          {ctrJ ? <StatusBadge label={`${c.ctr}%`} color={ctrJ.color} bg={ctrJ.bg} /> : <span style={{ color: C.inkLt }}>—</span>}
+                                        </td>
+                                      </>
+                                    )}
+                                    <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                                        <div style={{ width: 30, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+                                          <div style={{ height: "100%", width: `${Math.min(c.lpvRate, 100)}%`, background: c.lpvRate >= criteria.lpvr_good ? C.good : C.warn, borderRadius: 2 }} />
+                                        </div>
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: c.lpvRate >= criteria.lpvr_good ? C.good : C.warn }}>{c.lpvRate}%</span>
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                                      <button onClick={() => {
+                                        const next = [...deletedAds, c.name];
+                                        setDeletedAds(next);
+                                        try { localStorage.setItem("oa_deleted_ads", JSON.stringify(next)); } catch {}
+                                      }} style={{
+                                        background: "none", border: `1px solid ${C.border}`, borderRadius: 8,
+                                        width: 24, height: 24, cursor: "pointer", fontSize: 11, color: C.inkLt,
+                                        display: "flex", alignItems: "center", justifyContent: "center"
+                                      }} title="숨기기">✕</button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      );
-                    })()}
-                    <Card>
-                      <CardTitle title={campTab==="conversion"?"전환 캠페인":"트래픽 캠페인"}
-                        sub={campTab==="conversion"?"CPA · LPV율 중심":"CPC · CTR 중심"}/>
-                      <div style={{overflowX:"auto"}}>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:600}}>
-                          <thead><tr style={{borderBottom:`2px solid ${C.border}`}}>
-                            {(campTab==="conversion"
-                              ?["광고명","광고세트","광고비","클릭","구매","전환값","CPA","ROAS","LPV율","삭제"]
-                              :["광고명","광고세트","광고비","클릭","LPV","CPC","CTR","LPV율","삭제"]
-                            ).map((h,hi)=>(
-                              <th key={hi} style={{padding:"8px 8px",textAlign:h==="광고명"?"left":"center",
-                                color:C.inkLt,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{h==="삭제"?"":h}</th>
-                            ))}
-                          </tr></thead>
-                          <tbody>{camps.map((c,i)=>{
-                            const cpaOk=(c.cpa||0)>0&&(c.cpa||0)<=16000, cpcOk=(c.cpc||0)<=130&&(c.cpc||0)>0, ctrOk=(c.ctr||0)>=3, lpvOk=(c.lpvRate||0)>=65;
-                            return(<tr key={i} style={{borderBottom:`1px solid ${C.border}`,transition:"background 0.15s",cursor:"pointer"}}
-                              onMouseEnter={e=>e.currentTarget.style.background=C.cream}
-                              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                              onClick={()=>setCreativeAd(c)}>
-                              {/* 광고명 + 판단 뱃지 */}
-                              <td style={{padding:"10px 8px",maxWidth:200}}>
-                                <div style={{fontWeight:700,color:C.ink,fontSize:11,wordBreak:"break-all",marginBottom:4}}>{c.name}</div>
-                                {(()=>{
-                                  const adObj={spend:c.spend,clicks:c.clicks,lpv:c.lpv,purchases:c.purchases,impressions:c.impressions||0,clicksAll:c.clicks};
-                                  const lpvC=lpvCostStatus(c.spend,c.lpv);
-                                  const ct=ctrStatus(c.clicks,c.impressions||0);
-                                  const badges=[];
-                                  if(lpvC) badges.push({label:`LPV ${lpvC.label}`,color:lpvC.color,bg:lpvC.bg});
-                                  if(campTab==="conversion"){
-                                    const cpa=cpaStatus(c.spend,c.purchases,margin);
-                                    if(cpa) badges.push({label:`CPA ${cpa.label}`,color:cpa.color,bg:cpa.bg});
-                                  }
-                                  if(ct) badges.push({label:`CTR ${ct.label}`,color:ct.color,bg:ct.bg});
-                                  return badges.slice(0,2).map((b,bi)=>(
-                                    <span key={bi} style={{fontSize:9,fontWeight:700,padding:"1px 7px",borderRadius:20,
-                                      color:b.color,background:b.bg,border:`1px solid ${b.color}33`,marginRight:3,display:"inline-block"}}>
-                                      {b.label}
-                                    </span>
-                                  ));
-                                })()}
-                              </td>
-                              {/* 광고세트명 */}
-                              <td style={{padding:"10px 8px",maxWidth:160}}>
-                                <div style={{fontSize:10,color:C.inkMid,wordBreak:"break-all"}}>{c.adset||"—"}</div>
-                              </td>
-                              <td style={{padding:"10px 8px",textAlign:"right",color:C.inkMid,fontSize:10}}>₩{Math.round(c.spend/1000).toLocaleString()}K</td>
-                              <td style={{padding:"10px 8px",textAlign:"right",color:C.inkMid}}>{c.clicks.toLocaleString()}</td>
-                              {campTab==="conversion" ? <>
-                                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:800,color:C.good}}>{c.purchases}</td>
-                                <td style={{padding:"10px 8px",textAlign:"right",fontSize:10,color:C.inkMid}}>
-                                  {c.convValue>0?`₩${Math.round(c.convValue/1000).toLocaleString()}K`:"—"}
-                                </td>
-                                <td style={{padding:"10px 8px",textAlign:"right"}}>
-                                  {c.cpa>0?<span style={{fontWeight:800,fontSize:11,color:cpaOk?C.good:C.bad,background:cpaOk?"#EDF7F1":"#FEF0F0",padding:"2px 7px",borderRadius:20}}>₩{c.cpa.toLocaleString()}</span>:<span style={{color:C.inkLt}}>—</span>}
-                                </td>
-                                <td style={{padding:"10px 8px",textAlign:"right"}}>
-                                  {c.roas>0?<span style={{fontWeight:800,fontSize:11,color:c.roas>=3?C.good:C.warn,background:c.roas>=3?"#EDF7F1":"#FFF8EC",padding:"2px 7px",borderRadius:20}}>{c.roas}x</span>:<span style={{color:C.inkLt}}>—</span>}
-                                </td>
-                              </> : <>
-                                <td style={{padding:"10px 8px",textAlign:"right",color:C.sage,fontWeight:700}}>{c.lpv.toLocaleString()}</td>
-                                <td style={{padding:"10px 8px",textAlign:"right"}}>
-                                  <span style={{fontWeight:800,fontSize:11,color:cpcOk?C.good:C.bad,background:cpcOk?"#EDF7F1":"#FEF0F0",padding:"2px 7px",borderRadius:20}}>₩{c.cpc}</span>
-                                </td>
-                                <td style={{padding:"10px 8px",textAlign:"right"}}>
-                                  <span style={{fontWeight:800,fontSize:11,color:ctrOk?C.good:C.warn,background:ctrOk?"#EDF7F1":"#FFF8EC",padding:"2px 7px",borderRadius:20}}>{c.ctr}%</span>
-                                </td>
-                              </>}
-                              <td style={{padding:"10px 8px",textAlign:"right"}}>
-                                <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
-                                  <div style={{width:32,height:4,background:C.border,borderRadius:2,overflow:"hidden"}}>
-                                    <div style={{height:"100%",width:`${Math.min(c.lpvRate,100)}%`,background:lpvOk?C.sage:C.warn,borderRadius:2}}/>
-                                  </div>
-                                  <span style={{fontWeight:700,color:lpvOk?C.sage:C.warn,fontSize:10}}>{c.lpvRate}%</span>
-                                </div>
-                              </td>
-                              <td style={{padding:"10px 8px",textAlign:"center"}}>
-                                <button onClick={()=>{
-                                  const key = c.name;
-                                  const next = [...deletedAds, key];
-                                  setDeletedAds(next);
-                                  try{localStorage.setItem("oa_deleted_ads", JSON.stringify(next));}catch{}
-                                }} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:6,
-                                  width:24,height:24,cursor:"pointer",fontSize:12,color:C.inkLt,
-                                  display:"flex",alignItems:"center",justifyContent:"center",
-                                  transition:"all 0.15s"}}
-                                  title="광고 숨기기"
-                                  onMouseEnter={e=>{e.currentTarget.style.background="#FEF0F0";e.currentTarget.style.borderColor=C.bad;e.currentTarget.style.color=C.bad;}}
-                                  onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.inkLt;}}>
-                                  ✕
-                                </button>
-                              </td>
-                            </tr>);
-                          })}</tbody>
-                        </table>
+                      </Card>
+                    </>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 판단 탭 */}
+        {metaTab === "alert" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!hasSheet ? (
+              <Card style={{ textAlign: "center", padding: "48px 20px" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 16 }}>시트 연결 후 판단 결과가 표시됩니다</div>
+                <Btn onClick={() => setSec("metaSettings")}>시트 연결하기</Btn>
+              </Card>
+            ) : cutAds.length === 0 && holdAds.length === 0 ? (
+              <Card style={{ textAlign: "center", padding: "48px 20px" }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.ink }}>모든 광고 정상</div>
+                <div style={{ fontSize: 13, color: C.inkLt, marginTop: 4 }}>교체·보류 기준 초과 광고 없음</div>
+              </Card>
+            ) : (
+              <>
+                {cutAds.map((ad, i) => {
+                  const m = getAdMargin(ad.name, ad.campaign, margins, margin);
+                  const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
+                  const lpvR = lpvRateStatus(ad.clicks, ad.lpv, criteria);
+                  const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+                  const ctrJ = ctrStatus(ad.clicks, ad.impressions, criteria);
+                  return (
+                    <Card key={i} style={{ border: `1px solid ${C.bad}44` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{ad.name}</div>
+                          <div style={{ fontSize: 11, color: C.inkLt, marginTop: 2 }}>{ad.adset || ad.campaign}</div>
+                        </div>
+                        <StatusBadge label="교체 필요" color={C.bad} bg={C.badLt} />
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                        {lpvC && <StatusBadge label={`LPV단가 ${lpvC.label} (₩${lpvC.cost})`} color={lpvC.color} bg={lpvC.bg} />}
+                        {lpvR && <StatusBadge label={`LPV전환율 ${lpvR.label} (${lpvR.rate}%)`} color={lpvR.color} bg={lpvR.bg} />}
+                        {cpaJ && <StatusBadge label={`CPA ${cpaJ.label} (₩${cpaJ.cpa?.toLocaleString()})`} color={cpaJ.color} bg={cpaJ.bg} />}
+                        {ctrJ && <StatusBadge label={`CTR ${ctrJ.label} (${ctrJ.ctr}%)`} color={ctrJ.color} bg={ctrJ.bg} />}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {[
+                          { l: "광고비", v: `₩${Math.round(ad.spend / 1000)}K` },
+                          { l: "클릭", v: (ad.clicks || 0).toLocaleString() },
+                          { l: "LPV", v: (ad.lpv || 0).toLocaleString() },
+                          ...(ad.purchases > 0 ? [{ l: "구매", v: ad.purchases }] : []),
+                        ].map(({ l, v }) => (
+                          <div key={l} style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 10, color: C.inkLt }}>{l}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{v}</div>
+                          </div>
+                        ))}
                       </div>
                     </Card>
-                  </>
-                );
-              })()}
-            </>)}
-          </div>
-        )}
-
-        {/* 구글 시트 연결 모달 */}
-        {sheetModal&&(
-          <Modal title="📊 구글 시트 연결" onClose={()=>setSheetModal(false)} wide>
-            {/* 사용 방법 안내 */}
-            <div style={{background:C.cream,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px",marginBottom:20}}>
-              <div style={{fontSize:12,fontWeight:800,color:C.ink,marginBottom:12}}>📋 연결 방법 (3단계)</div>
-              {[
-                {n:"1",title:"메타 광고관리자에서 내보내기",desc:"광고관리자 → 보고서 → CSV 다운로드 (날짜·캠페인·목적·노출·클릭·LPV·전환·지출 컬럼 포함)"},
-                {n:"2",title:"구글 시트에 붙여넣기",desc:"구글 드라이브에서 새 시트 만들고 → A1 셀에 그대로 붙여넣기 (헤더 포함). 시트명은 아무거나 OK"},
-                {n:"3",title:"공유 설정 변경",desc:"시트 우상단 '공유' → '링크가 있는 모든 사용자' → '뷰어'로 설정 후 링크 복사"},
-              ].map(s=>(
-                <div key={s.n} style={{display:"flex",gap:10,marginBottom:10}}>
-                  <div style={{width:22,height:22,borderRadius:"50%",background:C.rose,color:C.white,
-                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,flexShrink:0}}>{s.n}</div>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,color:C.ink}}>{s.title}</div>
-                    <div style={{fontSize:10,color:C.inkMid,marginTop:2}}>{s.desc}</div>
-                  </div>
-                </div>
-              ))}
-              <div style={{marginTop:8,padding:"8px 12px",background:C.goldLt,borderRadius:8,fontSize:10,color:C.gold,fontWeight:700}}>
-                💡 메타 광고관리자 컬럼 이름이 한국어·영어 둘 다 자동으로 인식돼요
-              </div>
-            </div>
-
-            <FR label="구글 시트 URL">
-              <Inp value={sheetInput} onChange={setSheetInput}
-                placeholder="https://docs.google.com/spreadsheets/d/..."/>
-            </FR>
-            <div style={{fontSize:10,color:C.inkLt,marginBottom:16,marginTop:-6}}>
-              공유 링크 또는 편집 링크 모두 가능해요
-            </div>
-            <Btn onClick={saveSheetUrl} disabled={!sheetInput.trim()} style={{width:"100%"}}>
-              🔗 연결하기
-            </Btn>
-            {sheetUrl&&(
-              <Btn variant="danger" onClick={()=>{setSheetUrl("");setMetaRaw([]);setMetaStatus("idle");setSheetModal(false);}}
-                style={{width:"100%",marginTop:8}}>
-                🗑 연결 해제
-              </Btn>
+                  );
+                })}
+                {holdAds.map((ad, i) => {
+                  const m = getAdMargin(ad.name, ad.campaign, margins, margin);
+                  const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
+                  const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+                  const ctrJ = ctrStatus(ad.clicks, ad.impressions, criteria);
+                  return (
+                    <Card key={i} style={{ border: `1px solid ${C.warn}44` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{ad.name}</div>
+                          <div style={{ fontSize: 11, color: C.inkLt, marginTop: 2 }}>{ad.adset || ad.campaign}</div>
+                        </div>
+                        <StatusBadge label="보류 검토" color={C.warn} bg={C.warnLt} />
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {lpvC && <StatusBadge label={`LPV단가 ${lpvC.label}`} color={lpvC.color} bg={lpvC.bg} />}
+                        {cpaJ && <StatusBadge label={`CPA ${cpaJ.label}`} color={cpaJ.color} bg={cpaJ.bg} />}
+                        {ctrJ && <StatusBadge label={`CTR ${ctrJ.label}`} color={ctrJ.color} bg={ctrJ.bg} />}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </>
             )}
-          </Modal>
-        )}
-      </div>
-    );
-  })();
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // ✨ 인플루언서 (이전과 동일 구조)
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const infKpi=[
-    {label:"유료",         value:`${infs.filter(f=>f.tier==="유료").length}명`,change:0,good:"high",icon:"💸",note:`무료 ${infs.filter(f=>f.tier==="무료").length}명`},
-    {label:"게시 완료",    value:`${infs.filter(f=>f.posted>0).length}/${infs.length}명`,change:0,good:"high",icon:"📸",note:"게시 확인 기준"},
-    {label:"2차 활용가능", value:`${infs.filter(f=>f.reusable).length}명`,change:0,good:"high",icon:"♻️",note:"활용 가능"},
-    {label:"💰 입금완료",  value:`${infs.filter(f=>f.reusable&&f.paid).length}명`,change:0,good:"high",icon:"✅",note:`미입금 ${infs.filter(f=>f.reusable&&!f.paid).length}명`},
-    {label:"메타 활용",    value:`${infs.filter(f=>f.metaUsed).length}명`,change:0,good:"high",icon:"📣",note:"광고 소재 활용"},
-  ];
-  // 인플루언서 모달 — 별도 컴포넌트로 분리해서 리렌더 차단
-  // InfModal
-  const [infModalData, setInfModalData] = useState(null); // {mode, initial}
-  const [insModalData, setInsModalData] = useState(null); // {initial}
-  const [invModalData, setInvModalData] = useState(null); // {mode, initial}
-  const [schModalData, setSchModalData] = useState(null); // {mode, initial}
-  // 모달은 return JSX 안에서 직접 렌더링
-
-
-  const InfluencerSection=(()=>{
-    const tierData=[
-      {name:"매크로",value:infs.filter(f=>f.tier==="매크로").length,color:C.rose},
-      {name:"미드",  value:infs.filter(f=>f.tier==="미드").length,  color:C.gold},
-      {name:"마이크로",value:infs.filter(f=>f.tier==="마이크로").length,color:C.sage},
-      {name:"나노",  value:infs.filter(f=>f.tier==="나노").length,  color:C.purple},
-    ].filter(d=>d.value>0);
-    return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-
-      {/* 구글 시트 연동 배너 */}
-      <div style={{
-        background: infSheetStatus==="ok" ? "#EDF7F1" : C.goldLt,
-        border:`1px solid ${infSheetStatus==="ok"?C.good+"55":C.gold+"66"}`,
-        borderRadius:12,padding:"12px 16px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",
-      }}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:20}}>{infSheetStatus==="ok"?"🟢":"📋"}</span>
-          <div>
-            {infSheetStatus==="ok"
-              ? <><div style={{fontSize:12,fontWeight:800,color:C.good}}>구글 시트 연결됨 · {infs.length}명 로드</div>
-                  <div style={{fontSize:10,color:C.inkMid,marginTop:1}}>시트 변경 시 자동 반영</div></>
-              : infSheetStatus==="loading"
-              ? <div style={{fontSize:12,fontWeight:700,color:C.gold}}>⏳ 불러오는 중...</div>
-              : infSheetStatus==="error"
-              ? <div style={{fontSize:12,fontWeight:800,color:C.bad}}>연결 실패 — 시트 공유 설정 또는 URL을 확인하세요</div>
-              : <><div style={{fontSize:12,fontWeight:800,color:C.gold}}>구글 시트 연결하면 인플루언서 데이터가 자동 동기화돼요</div>
-                  <div style={{fontSize:10,color:C.inkMid,marginTop:1}}>name · tier · platform · product · reach · saves · clicks · conv 등</div></>
-            }
-          </div>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          {infSheetStatus==="ok"&&<Btn variant="sage" small onClick={()=>fetchInfSheet(infUrl)}>🔄 새로고침</Btn>}
-          {infSheetStatus==="error"&&<Btn variant="danger" small onClick={()=>{setInfUrl("");setInfSheetStatus("idle");}}>🗑 URL 초기화</Btn>}
-          <Btn variant={infSheetStatus==="ok"?"neutral":"gold"} small onClick={()=>{setInfUrlInput(infUrl);setInfUrlModal(true)}}>
-            {infSheetStatus==="ok"?"⚙️ 시트 변경":"🔗 시트 연결"}
-          </Btn>
-        </div>
-      </div>
-
-      {/* 시트 URL 입력 모달 */}
-      {infUrlModal&&(
-        <Modal title="📋 인플루언서 시트 연결" onClose={()=>setInfUrlModal(false)}>
-          <div style={{background:C.cream,borderRadius:10,padding:"14px",marginBottom:16,fontSize:11,color:C.inkMid,lineHeight:1.7}}>
-            <b style={{color:C.ink}}>시트 1행 헤더 그대로 사용 가능</b><br/>
-            담당자 · 제품명 · 이름 · 인스타그램 아이디 · 매체 · 링크 · 제품 발송 · 제품발송일자 · 작성마감일 · 포스팅 확인 · 비고 · 기간연장<br/>
-            <span style={{color:C.rose}}>※ 포스팅 확인 컬럼이 "확인완료"이면 게시완료로 인식</span>
-          </div>
-          <FR label="구글 시트 URL">
-            <Inp value={infUrlInput} onChange={v=>setInfUrlInput(v)} placeholder="https://docs.google.com/spreadsheets/d/..."/>
-          </FR>
-          <div style={{display:"flex",gap:8,marginTop:4}}>
-            <Btn onClick={()=>{setInfUrl(infUrlInput);setInfUrlModal(false);fetchInfSheet(infUrlInput);}} style={{flex:1}}>🔗 연결</Btn>
-            {infUrl&&<Btn variant="danger" onClick={()=>{setInfUrl("");setInfSheetStatus("idle");setInfUrlModal(false);}}>연결 해제</Btn>}
-          </div>
-        </Modal>
-      )}
-
-      {overdueIns.length>0&&(
-        <div style={{background:"#FFFBF0",border:`2px solid ${C.warn}66`,borderRadius:14,
-          padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-          <span style={{fontSize:20}}>⏰</span>
-          <div style={{flex:1,minWidth:140}}>
-            <div style={{fontSize:12,fontWeight:800,color:C.warn}}>인사이트 기록 필요 · {overdueIns.length}명</div>
-            <div style={{fontSize:10,color:C.inkMid,marginTop:2}}>{overdueIns.map(f=>f.name).join(" · ")}</div>
-          </div>
-        </div>
-      )}
-      <KpiGrid items={infKpi} cols={6}/>
-      <div className="content-grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        {/* 💰 2차활용 미입금 카드 */}
-        <Card>
-          <CardTitle title="💰 2차활용 입금 현황" sub={`미입금 ${infs.filter(f=>f.reusable&&!f.paid).length}명`}/>
-          {infs.filter(f=>f.reusable&&!f.paid).length===0?(
-            <div style={{textAlign:"center",padding:"24px 0",color:C.good,fontSize:12,fontWeight:700}}>✅ 모두 입금 완료</div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
-              {infs.filter(f=>f.reusable&&!f.paid).map((f,i)=>(
-                <div key={f.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-                  padding:"7px 10px",borderRadius:9,background:C.cream,border:`1px solid ${C.border}`}}>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:800,color:C.ink}}>{f.displayName||f.name}</div>
-                    <div style={{fontSize:9,color:C.inkMid,marginTop:1}}>{f.product} · {f.note&&f.note.slice(0,30)}</div>
-                  </div>
-                  <button onClick={()=>setInfs(arr=>arr.map(x=>x.id===f.id?{...x,paid:true}:x))}
-                    style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:20,cursor:"pointer",
-                      background:"#EDF7F1",color:C.good,border:`1px solid ${C.good}44`}}>
-                    입금완료 ✓
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* ♻️ 2차활용 기간 만료 체크 카드 */}
-        <Card>
-          <CardTitle title="♻️ 2차활용 기간 현황" sub="게시일 기준"/>
-          {(()=>{
-            const now = new Date();
-            const reusables = infs.filter(f=>f.reusable&&f.postedDate);
-            // 기간 파싱 — note에서 "3개월","6개월","1개월","무한" 추출
-            const getDays = (note="") => {
-              if(note.includes("무한")) return 9999;
-              const m = note.match(/(\d+)개월/);
-              return m ? parseInt(m[1])*30 : 90; // 기본 3개월
-            };
-            const withExpiry = reusables.map(f=>{
-              const days = getDays(f.note||"");
-              const expiry = new Date(f.postedDate);
-              expiry.setDate(expiry.getDate()+days);
-              const left = Math.ceil((expiry-now)/(1000*60*60*24));
-              return {...f, left, expiry: days===9999?"무한":expiry.toLocaleDateString("ko-KR",{month:"short",day:"numeric"})};
-            }).sort((a,b)=>a.left-b.left);
-            const expired  = withExpiry.filter(f=>f.left<=0&&f.left!==9999);
-            const soon     = withExpiry.filter(f=>f.left>0&&f.left<=14);
-            const ok       = withExpiry.filter(f=>f.left>14||f.left===9999);
-            return(
-              <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:220,overflowY:"auto"}}>
-                {expired.length>0&&expired.map(f=>(
-                  <div key={f.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                    padding:"6px 10px",borderRadius:8,background:"#FEF0F0",border:`1px solid ${C.bad}33`}}>
-                    <div style={{fontSize:11,fontWeight:700,color:C.bad}}>{f.displayName||f.name}</div>
-                    <span style={{fontSize:10,color:C.bad,fontWeight:700}}>만료</span>
-                  </div>
-                ))}
-                {soon.length>0&&soon.map(f=>(
-                  <div key={f.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                    padding:"6px 10px",borderRadius:8,background:"#FFF8EC",border:`1px solid ${C.warn}33`}}>
-                    <div style={{fontSize:11,fontWeight:700,color:C.warn}}>{f.displayName||f.name}</div>
-                    <span style={{fontSize:10,color:C.warn,fontWeight:700}}>D-{f.left}</span>
-                  </div>
-                ))}
-                {ok.length>0&&ok.map(f=>(
-                  <div key={f.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                    padding:"6px 10px",borderRadius:8,background:C.cream}}>
-                    <div style={{fontSize:11,color:C.inkMid}}>{f.displayName||f.name}</div>
-                    <span style={{fontSize:10,color:C.inkLt}}>{f.left===9999?"무한":f.expiry+"까지"}</span>
-                  </div>
-                ))}
-                {withExpiry.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:C.inkLt,fontSize:11}}>데이터 없음</div>}
-              </div>
-            );
-          })()}
-        </Card>
-      </div>
-
-      <Card>
-        <CardTitle title="인플루언서별 시딩 현황" sub="게시일 최근순"
-          action={<Btn small onClick={()=>{setInfModalData({mode:"add",initial:null})}}>+ 추가</Btn>}/>
-        {infs.length===0&&(
-          <div style={{textAlign:"center",padding:"32px 0",color:C.inkLt,fontSize:12}}>
-            아직 등록된 인플루언서가 없어요<br/>
-            <Btn style={{marginTop:12}} onClick={()=>{setInfModalData({mode:"add",initial:null})}}>+ 첫 번째 추가</Btn>
           </div>
         )}
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {[...infs].sort((a,b)=>{
-            if(!a.postedDate&&!b.postedDate) return 0;
-            if(!a.postedDate) return 1;
-            if(!b.postedDate) return -1;
-            return new Date(b.postedDate)-new Date(a.postedDate);
-          }).map(f=>{
-            const st=insightStatus(f);
-            const tc={유료:C.rose,무료:C.sage,매크로:C.rose,미드:C.gold,마이크로:C.sage,나노:C.purple}[f.tier]||C.inkMid;
-            const due=addDays(f.postedDate,7);
-            const elapsed=f.postedDate&&due?Math.min(Math.max((TODAY-new Date(f.postedDate))/(new Date(due)-new Date(f.postedDate)),0),1):0;
-            return(
-              <div key={f.id} style={{border:`1px solid ${st.label.includes("미입력")||st.label==="오늘 입력!"?C.warn+"66":C.border}`,
-                borderRadius:12,padding:"12px 14px",background:st.label.includes("미입력")?"#FFF8F8":C.white}}>
-                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
-                  <div style={{display:"flex",gap:10,alignItems:"center",flex:1,minWidth:0}}>
-                    <div style={{width:34,height:34,borderRadius:10,background:`${tc}22`,flexShrink:0,
-                      display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>
-                      {f.platform==="인스타"?"📸":f.platform==="유튜브"?"▶️":"🎵"}
-                    </div>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:800,color:C.ink}}>
-                        {(()=>{
-                          const handle = f.name.replace(/^@/,"");
-                          const url = f.platform==="유튜브"
-                            ? `https://www.youtube.com/@${handle}`
-                            : f.platform==="틱톡"
-                            ? `https://www.tiktok.com/@${handle}`
-                            : `https://www.instagram.com/${handle}`;
-                          return(
-                            <a href={url} target="_blank" rel="noopener noreferrer"
-                              style={{color:C.ink,textDecoration:"none",cursor:"pointer",
-                                borderBottom:`1px dashed ${C.border}`}}
-                              onMouseEnter={e=>{e.currentTarget.style.color=C.rose;e.currentTarget.style.borderBottomColor=C.rose;}}
-                              onMouseLeave={e=>{e.currentTarget.style.color=C.ink;e.currentTarget.style.borderBottomColor=C.border;}}>
-                              {f.displayName||f.name}
-                            </a>
-                          );
-                        })()}
-                      </div>
-                      <div style={{fontSize:10,color:C.inkLt}}>
-                        <span style={{color:tc,fontWeight:700}}>{f.tier}</span>{" · "}{f.name}{" · "}{f.product}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,flexWrap:"wrap"}}>
-                    <span style={{fontSize:10,fontWeight:700,color:st.color,background:st.bg,
-                      padding:"3px 10px",borderRadius:20,whiteSpace:"nowrap"}}>{st.icon} {st.label}</span>
-                    {st.label!=="기록완료"&&st.label!=="미게시"&&(
-                      <Btn variant="ghost" small onClick={()=>{
-                        setInsModalData({initial:{id:f.id,name:f.name,reach:"",saves:"",clicks:"",conv:""}});
-                        setInsModalData({initial:true});
-                      }}>✏️ 기록</Btn>
-                    )}
-                    <Btn variant="neutral" small onClick={()=>{setInfModalData({mode:"edit",initial:f})}}>수정</Btn>
-                    <Btn variant="danger" small onClick={()=>setInfs(infs.filter(x=>x.id!==f.id))}>🗑</Btn>
-                  </div>
-                </div>
-                {f.postedDate&&(
-                  <div style={{marginTop:10}}>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.inkLt,marginBottom:3}}>
-                      <span>게시 {f.postedDate}</span><span>D+7 기록 {due}</span>
-                    </div>
-                    <div style={{height:4,background:C.border,borderRadius:2,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${elapsed*100}%`,borderRadius:2,
-                        background:st.label==="기록완료"?C.good:elapsed>=1?C.bad:`linear-gradient(90deg,${C.rose},${C.gold})`}}/>
-                    </div>
-                  </div>
-                )}
-                {/* 콘텐츠 활용 현황 */}
-                <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
-                  {/* 영상 수령 */}
-                  <span onClick={()=>setInfs(arr=>arr.map(x=>x.id===f.id?{...x,videoReceived:!x.videoReceived}:x))}
-                    style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,cursor:"pointer",
-                      color:f.videoReceived?C.good:C.inkLt,
-                      background:f.videoReceived?"#EDF7F1":C.cream,
-                      border:`1px solid ${f.videoReceived?C.good+"44":C.border}`}}>
-                    🎬 {f.videoReceived?"영상수령":"미수령"}
-                  </span>
-                  {/* 2차 활용 가능 여부 */}
-                  {(()=>{ const rs=reusableStatus(f); return(
-                    <span onClick={()=>setInfs(arr=>arr.map(x=>x.id===f.id?{...x,reusable:!x.reusable}:x))}
-                      style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,cursor:"pointer",
-                        color:rs.color,background:rs.bg,border:`1px solid ${rs.color}44`}}>
-                      ♻️ {rs.label}
-                    </span>
-                  );})()}
-                  {/* 2차활용 입금 여부 */}
-                  {f.reusable&&(
-                    <span onClick={()=>setInfs(arr=>arr.map(x=>x.id===f.id?{...x,paid:!x.paid}:x))}
-                      style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,cursor:"pointer",
-                        color:f.paid?C.good:C.warn,
-                        background:f.paid?"#EDF7F1":"#FFF8EC",
-                        border:`1px solid ${f.paid?C.good+"44":C.warn+"44"}`}}>
-                      💰 {f.paid?"입금완료":"미입금"}
-                    </span>
-                  )}
-                  {/* 메타 광고 활용 */}
-                  <span onClick={()=>setInfs(arr=>arr.map(x=>x.id===f.id?{...x,metaUsed:!x.metaUsed}:x))}
-                    style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,cursor:"pointer",
-                      color:f.metaUsed?C.purple:C.inkLt,
-                      background:f.metaUsed?C.purpleLt:C.cream,
-                      border:`1px solid ${f.metaUsed?C.purple+"44":C.border}`}}>
-                    📣 {f.metaUsed?"메타광고 활용":"미활용"}
-                  </span>
-                </div>
-                {/* 메모 */}
-                {f.note&&(
-                  <div style={{marginTop:6,fontSize:10,color:C.inkMid,padding:"4px 10px",
-                    background:C.cream,borderRadius:8,display:"inline-block"}}>
-                    {f.note}
-                  </div>
-                )}
-                {f.reach!==null&&(
-                  <div style={{display:"flex",gap:14,marginTop:10,flexWrap:"wrap"}}>
-                    {[{l:"도달",v:(f.reach/1000).toFixed(0)+"K",c:C.rose},{l:"저장",v:f.saves?.toLocaleString(),c:C.gold},
-                      {l:"클릭",v:f.clicks?.toLocaleString(),c:C.purple},{l:"전환",v:f.conv,c:C.good}].map(({l,v,c})=>(
-                      <div key={l} style={{textAlign:"center"}}>
-                        <div style={{fontSize:9,color:C.inkLt}}>{l}</div>
-                        <div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-    </div>
-    );
-  })();
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 📦 재고 + 📅 스케줄 (이전 v5와 동일)
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const invKpi=[
-    {label:"전체 SKU",    value:`${inv.length}종`,change:0,good:"high",icon:"📋",note:"활성 상품"},
-    {label:"위험 재고",   value:`${dangerInv.length}종`,change:dangerInv.length>0?1:0,good:"low",icon:"🚨",note:"즉시 발주"},
-    {label:"주의 재고",   value:`${cautionInv.length}종`,change:0,good:"low",icon:"⚠️",note:"21일 내 소진"},
-    {label:"30일 판매",   value:inv.reduce((s,i)=>s+i.sold30,0).toLocaleString(),change:+18.4,good:"high",icon:"📈",note:"전월 대비"},
-    {label:"총 재고",     value:inv.reduce((s,i)=>s+i.stock,0).toLocaleString(),change:-3.2,good:"high",icon:"📦",note:"전체 수량"},
-    {label:"주문 재고",   value:inv.reduce((s,i)=>s+(i.ordered||0),0).toLocaleString(),change:0,good:"high",icon:"🚚",note:"입고 예정"},
-  ];
-  const stockTrend=[
-    {week:"W1",세럼30:1680,선크림:2480,토너패드:380},
-    {week:"W2",세럼30:1520,선크림:2310,토너패드:280},
-    {week:"W3",세럼30:1380,선크림:2180,토너패드:188},
-    {week:"W4",세럼30:1240,선크림:2140,토너패드:88},
-  ];
-  function parseInvCSV(text){
-    const lines = text.trim().split("\n").map(l=>{
-      const res=[]; let cur="", inQ=false;
-      for(let i=0;i<l.length;i++){
-        if(l[i]==='"'){inQ=!inQ;}
-        else if(l[i]===","&&!inQ){res.push(cur.trim());cur="";}
-        else cur+=l[i];
-      }
-      res.push(cur.trim());
-      return res;
-    });
-    const HINTS=["상품명","sku","카테고리","재고","판매"];
-    let startIdx=0;
-    for(let i=0;i<Math.min(lines.length,5);i++){
-      if(HINTS.some(h=>lines[i].join(",").toLowerCase().includes(h))){startIdx=i;break;}
-    }
-    const headers=lines[startIdx].map(h=>h.toLowerCase().replace(/[\s\(\)개]/g,"").replace(/_+/g,"_"));
-    return lines.slice(startIdx+1).filter(l=>l.some(c=>c)).map((row,ri)=>{
-      const obj={};
-      headers.forEach((h,i)=>{obj[h]=row[i]||"";});
-      const num=(...ks)=>{for(const k of ks){const v=obj[k];if(v)return parseInt(String(v).replace(/,/g,""))||0;}return 0;};
-      return {
-        id:Date.now()+ri,
-        name:    obj["상품명"]||obj["name"]||"",
-        sku:     obj["sku"]||"",
-        category:obj["카테고리"]||obj["category"]||"기타",
-        stock:   num("현재재고","재고"),
-        ordered: num("주문수량","주문"),
-        reorder: num("발주기준","발주"),
-        sold30:  num("30일판매량","판매량","판매"),
-      };
-    }).filter(r=>r.name);
-  }
-
-  const InventorySection=(()=>{
-    const [uploadMsg,setUploadMsg]=useState("");
-    function handleInvFile(e){
-      const file=e.target.files[0]; if(!file)return;
-      const reader=new FileReader();
-      reader.onload=ev=>{
-        try{
-          const parsed=parseInvCSV(ev.target.result);
-          if(parsed.length===0){setUploadMsg("❌ 데이터를 읽지 못했어요. 양식을 확인해주세요.");}
-          else{setInv(parsed);setUploadMsg("✅ "+parsed.length+"개 상품 업로드 완료!");}
-        }catch(err){setUploadMsg("❌ 파일 읽기 실패");}
-        setTimeout(()=>setUploadMsg(""),4000);
-      };
-      reader.readAsText(file,"utf-8");
-      e.target.value="";
-    }
-    return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {/* 구글시트 연결 배너 */}
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",
-        background:C.white,border:`1px solid ${invSheetStatus==="ok"?C.good+"66":C.border}`,
-        borderRadius:12,flexWrap:"wrap"}}>
-        <span style={{fontSize:18}}>{invSheetStatus==="ok"?"🟢":"📋"}</span>
-        <div style={{flex:1}}>
-          {invSheetStatus==="ok"
-            ? <div style={{fontSize:12,fontWeight:700,color:C.good}}>구글시트 연결됨 · {inv.length}개 상품 로드</div>
-            : <><div style={{fontSize:12,fontWeight:700,color:C.ink}}>구글시트 재고원본 연결</div>
-               <div style={{fontSize:10,color:C.inkLt}}>재고원본 시트 URL을 연결하면 자동으로 재고가 업데이트돼요</div></>
-          }
-        </div>
-        {invSheetStatus==="loading"&&<span style={{fontSize:11,color:C.inkLt}}>⏳ 불러오는 중...</span>}
-        {invSheetStatus==="error"&&<span style={{fontSize:11,color:C.bad,fontWeight:700}}>❌ 연결 실패</span>}
-        {invSheetStatus==="ok"&&<Btn variant="sage" small onClick={()=>fetchInvSheet(invUrl)}>🔄</Btn>}
-        <Btn variant={invSheetStatus==="ok"?"neutral":"gold"} small
-          onClick={()=>{setInvUrlInput(invUrl);setInvUrlModal(true)}}>
-          {invSheetStatus==="ok"?"⚙️ 시트변경":"🔗 시트연결"}
-        </Btn>
       </div>
-
-      {/* CSV 파일 업로드 (대안) */}
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
-        background:C.cream,border:`1px dashed ${C.border}`,borderRadius:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,color:C.inkLt}}>📂 또는 CSV 파일로 업로드</span>
-        {uploadMsg&&<span style={{fontSize:11,fontWeight:700,
-          color:uploadMsg.startsWith("✅")?C.good:C.bad}}>{uploadMsg}</span>}
-        <label style={{cursor:"pointer",marginLeft:"auto"}}>
-          <input type="file" accept=".csv,.txt" onChange={handleInvFile} style={{display:"none"}}/>
-          <span style={{fontSize:10,fontWeight:700,padding:"5px 12px",borderRadius:8,
-            border:`1px solid ${C.border}`,background:C.white,color:C.inkMid,whiteSpace:"nowrap"}}>
-            파일 선택
-          </span>
-        </label>
-      </div>
-
-      {/* 재고원본 시트 연결 모달 */}
-      {invUrlModal&&(
-        <Modal title="📋 재고원본 시트 연결" onClose={()=>setInvUrlModal(false)} wide>
-          <div style={{background:C.sageLt,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:11,color:C.sage,fontWeight:700}}>
-            💡 구글시트 발주분석 파일의 <b>재고원본</b> 시트 URL을 붙여넣으세요<br/>
-            <span style={{fontWeight:400,color:C.inkMid}}>시트 공유 설정 → "링크 있는 모든 사용자" → 뷰어 권한</span>
-          </div>
-          <div style={{background:C.cream,borderRadius:8,padding:"10px 12px",fontSize:10,color:C.inkMid,marginBottom:14,lineHeight:1.8}}>
-            1. 구글시트에서 <b>재고원본</b> 시트 탭 클릭<br/>
-            2. 주소창 URL 전체 복사 (gid=숫자 포함)<br/>
-            3. 아래에 붙여넣기
-          </div>
-          <FR label="구글시트 URL">
-            <Inp value={invUrlInput} onChange={setInvUrlInput} placeholder="https://docs.google.com/spreadsheets/d/..."/>
-          </FR>
-          <Btn onClick={()=>{
-            const url=invUrlInput.trim();
-            setInvUrl(url);
-            setInvUrlModal(false);
-            if(url) fetchInvSheet(url);
-          }} style={{width:"100%",marginTop:8}}>🔗 연결하기</Btn>
-        </Modal>
-      )}
-      {dangerInv.length>0&&(<div style={{background:"#FEF0F0",border:`1px solid ${C.bad}44`,borderRadius:12,padding:"12px 14px",display:"flex",gap:10}}><span style={{fontSize:18}}>🚨</span><div><div style={{fontSize:12,fontWeight:800,color:C.bad}}>즉시 발주 — {dangerInv.map(i=>i.name).join(", ")}</div><div style={{fontSize:10,color:C.inkMid,marginTop:2}}>가용 재고 7일치 미만</div></div></div>)}
-      {cautionInv.length>0&&(<div style={{background:"#FFF8EC",border:`1px solid ${C.warn}44`,borderRadius:12,padding:"12px 14px",display:"flex",gap:10}}><span style={{fontSize:18}}>⚠️</span><div><div style={{fontSize:12,fontWeight:800,color:C.warn}}>주의 — {cautionInv.map(i=>i.name).join(", ")}</div><div style={{fontSize:10,color:C.inkMid,marginTop:2}}>14~21일 내 소진 예상</div></div></div>)}
-      <KpiGrid items={invKpi} cols={6}/>
-      <Card>
-        <CardTitle title="전체 재고 현황" sub="가용 · 예약 · 재고일수"
-          action={<Btn small onClick={()=>{setInvModalData({mode:"add",initial:null})}}>+ 추가</Btn>}/>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:480}}>
-            <thead><tr style={{borderBottom:`2px solid ${C.border}`}}>
-              {["상품","현재재고","주문(입고예정)","재고일수","30일판매","상태",""].map(h=>(
-                <th key={h} style={{padding:"8px 8px",textAlign:h==="상품"?"left":"right",color:C.inkLt,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>{inv.map(item=>{
-              const st=stockStatus(item),d=stockDays(item);
-              return(<tr key={item.id} style={{borderBottom:`1px solid ${C.border}`,transition:"background 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.cream}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <td style={{padding:"10px 8px"}}><div style={{fontWeight:700,color:C.ink}}>{item.name}</div><div style={{fontSize:9,color:C.inkLt}}>{item.sku}</div></td>
-                <td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:C.ink}}>{item.stock.toLocaleString()}</td>
-                <td style={{padding:"10px 8px",textAlign:"right"}}>
-                  {(item.ordered||0)>0
-                    ? <span style={{fontWeight:700,color:C.good,background:"#EDF7F1",padding:"2px 8px",borderRadius:20,fontSize:10}}>+{(item.ordered||0).toLocaleString()} 입고예정</span>
-                    : <span style={{color:C.inkLt,fontSize:10}}>—</span>}
-                </td>
-                <td style={{padding:"10px 8px",textAlign:"right"}}><span style={{fontWeight:800,fontSize:11,color:d<7?C.bad:d<21?C.warn:C.good}}>{d}일</span></td>
-                <td style={{padding:"10px 8px",textAlign:"right",color:C.inkMid}}>{item.sold30.toLocaleString()}</td>
-                <td style={{padding:"10px 8px",textAlign:"right"}}><span style={{fontSize:9,fontWeight:700,color:st.color,background:st.bg,padding:"2px 8px",borderRadius:20}}>{st.label}</span></td>
-                <td style={{padding:"10px 8px",textAlign:"right"}}>
-                  <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-                    <Btn variant="ghost" small onClick={()=>{setInvModalData({mode:"edit",initial:item})}}>수정</Btn>
-                    <Btn variant="danger" small onClick={()=>setInv(inv.filter(v=>v.id!==item.id))}>🗑</Btn>
-                  </div>
-                </td>
-              </tr>);
-            })}</tbody>
-          </table>
-        </div>
-      </Card>
-      <div className="content-grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"start"}}>
-      <Card>
-        <CardTitle title="주요 상품 재고 추이 (4주)" sub="주간 재고 감소 흐름"/>
-        <ResponsiveContainer width="100%" height={160}>
-          <LineChart data={stockTrend}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-            <XAxis dataKey="week" tick={{fontSize:10,fill:C.inkLt}} axisLine={false} tickLine={false}/>
-            <YAxis tick={{fontSize:9,fill:C.inkLt}} axisLine={false} tickLine={false}/>
-            <Tooltip content={<BeautyTooltip/>}/>
-            <Line type="monotone" dataKey="세럼30"  stroke={C.rose} strokeWidth={2.5} dot={{r:3,fill:C.rose}} name="세럼 30ml"/>
-            <Line type="monotone" dataKey="선크림"  stroke={C.gold} strokeWidth={2}   dot={{r:3,fill:C.gold}} name="선크림"/>
-            <Line type="monotone" dataKey="토너패드" stroke={C.bad} strokeWidth={2.5} dot={{r:3,fill:C.bad}} strokeDasharray="5 3" name="토너 패드"/>
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
-      <div style={{background:`linear-gradient(135deg,${C.goldLt},#fff)`,border:`1px solid ${C.gold}44`,borderRadius:14,padding:"16px"}}>
-        <div style={{fontSize:12,fontWeight:800,color:C.gold,marginBottom:10}}>📋 발주 권고 리스트</div>
-        {inv.filter(i=>stockStatus(i).label!=="정상").sort((a,b)=>stockDays(a)-stockDays(b)).map((item,i,arr)=>{
-          const st=stockStatus(item);
-          return(<div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<arr.length-1?`1px solid ${C.gold}22`:"none"}}>
-            <div><div style={{fontSize:11,fontWeight:700,color:C.ink}}>{item.name}</div><div style={{fontSize:9,color:C.inkMid}}>권장 {item.reorder.toLocaleString()}개</div></div>
-            <span style={{fontSize:10,fontWeight:800,color:st.color,background:st.bg,padding:"3px 10px",borderRadius:20}}>{st.label==="위험"?"즉시":"14일 내"}</span>
-          </div>);
-        })}
-        {inv.filter(i=>stockStatus(i).label!=="정상").length===0&&<div style={{fontSize:11,color:C.inkLt,textAlign:"center",padding:"12px 0"}}>발주 권고 없음 ✅</div>}
-      </div>
-      </div>
-    </div>
-  );
-  })();
-
-  const upcoming=sch.filter(s=>s.status!=="완료").sort((a,b)=>new Date(a.date)-new Date(b.date));
-  const done=sch.filter(s=>s.status==="완료");
-  const ScheduleSection=(()=>{
-    return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div className="content-grid-3" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-        {["공구","시딩","광고","이벤트"].map(type=>{
-          const tc=schTypeColor(type);
-          return(<div key={type} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
-            <div style={{fontSize:20,marginBottom:4}}>{schTypeIcon(type)}</div>
-            <div style={{fontSize:9,color:C.inkLt,fontWeight:700,letterSpacing:"0.1em"}}>{type}</div>
-            <div style={{fontSize:22,fontWeight:900,color:tc}}>{sch.filter(s=>s.type===type&&s.status!=="완료").length}</div>
-            <div style={{fontSize:9,color:C.inkLt}}>진행 예정</div>
-          </div>);
-        })}
-      </div>
-      <Card>
-        <CardTitle title="📅 전체 일정" sub="공구·시딩·광고·이벤트 통합 스케줄"
-          action={<Btn small onClick={()=>{setSchModalData({mode:"add",initial:null})}}>+ 일정 추가</Btn>}/>
-        {upcoming.length===0&&<div style={{textAlign:"center",color:C.inkLt,fontSize:12,padding:"28px 0"}}>예정된 일정이 없습니다</div>}
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {upcoming.map(s=>{
-            const d=daysUntil(s.date),tc=schTypeColor(s.type),isUrgent=d!==null&&d<=3&&d>=0;
-            return(<div key={s.id} style={{border:`1px solid ${isUrgent?C.rose+"66":C.border}`,borderRadius:12,
-              padding:"12px 14px",background:isUrgent?"#FFF8FC":C.white,transition:"box-shadow 0.2s"}}
-              onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 4px 16px rgba(232,86,122,0.1)`}
-              onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
-                <div style={{display:"flex",gap:10,alignItems:"flex-start",flex:1,minWidth:0}}>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:44,flexShrink:0}}>
-                    <span style={{fontSize:10,fontWeight:700,color:tc,background:`${tc}18`,padding:"2px 8px",borderRadius:20,whiteSpace:"nowrap"}}>{schTypeIcon(s.type)} {s.type}</span>
-                    {d!==null&&<span style={{fontSize:9,marginTop:4,color:d<0?C.bad:d<=3?C.rose:C.inkLt,fontWeight:700}}>{d===0?"오늘":d<0?`D+${Math.abs(d)}`:`D-${d}`}</span>}
-                  </div>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:800,color:C.ink}}>{s.title}</div>
-                    <div style={{fontSize:10,color:C.inkLt,marginTop:2}}>📆 {s.date}{s.endDate?` ~ ${s.endDate}`:""}{s.platform&&` · ${s.platform}`}</div>
-                    {s.note&&<div style={{fontSize:10,color:C.inkMid,marginTop:3}}>💬 {s.note}</div>}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <Btn variant="ghost" small onClick={()=>{setSchModalData({mode:"edit",initial:s})}}>✏️</Btn>
-                  <Btn variant="sage" small onClick={()=>setSch(sch.map(x=>x.id===s.id?{...x,status:"완료"}:x))}>✅</Btn>
-                  <Btn variant="danger" small onClick={()=>setSch(sch.filter(x=>x.id!==s.id))}>🗑</Btn>
-                </div>
-              </div>
-            </div>);
-          })}
-        </div>
-      </Card>
-      {done.length>0&&(
-        <Card>
-          <CardTitle title="✅ 완료된 일정" sub={`${done.length}건`}/>
-          {done.map(s=>(
-            <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-              padding:"8px 10px",borderRadius:10,background:C.cream,opacity:0.7,marginBottom:4}}>
-              <div>
-                <span style={{fontSize:10,fontWeight:700,color:schTypeColor(s.type),background:`${schTypeColor(s.type)}18`,
-                  padding:"1px 7px",borderRadius:20,marginRight:8}}>{s.type}</span>
-                <span style={{fontSize:12,fontWeight:600,color:C.inkMid}}>{s.title}</span>
-              </div>
-              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <span style={{fontSize:10,color:C.inkLt}}>{s.date}</span>
-                <Btn variant="danger" small onClick={()=>setSch(sch.filter(x=>x.id!==s.id))}>🗑</Btn>
-              </div>
-            </div>
-          ))}
-        </Card>
-      )}
-    </div>
     );
   })();
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // RENDER
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  return(
-    <div className="oa-layout" style={{background:C.cream,minHeight:"100vh",fontFamily:"'Noto Sans KR',sans-serif",color:C.ink}}>
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: FONT, color: C.ink }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;} button{font-family:inherit;}
-        input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
-        ::-webkit-scrollbar{height:4px;width:6px;}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px;}
-        ::-webkit-scrollbar-track{background:transparent;}
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; } button { font-family: inherit; }
+        input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        ::-webkit-scrollbar { height: 4px; width: 6px; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
 
-        /* PC 레이아웃 */
-        .oa-layout { display:flex; flex-direction:column; min-height:100vh; }
-        .oa-topbar { display:none; }
-        .oa-body   { display:flex; flex:1; }
-        .oa-sidebar{
-          width:220px; flex-shrink:0;
-          background:${C.white}; border-right:1px solid ${C.border};
-          position:fixed; top:0; left:0; bottom:0;
-          display:flex; flex-direction:column;
-          z-index:100; overflow-y:auto;
+        .oa-sidebar {
+          width: 240px; flex-shrink: 0;
+          background: ${C.white}; border-right: 1px solid ${C.border};
+          position: fixed; top: 0; left: 0; bottom: 0;
+          display: flex; flex-direction: column;
+          z-index: 100;
         }
-        .oa-main { margin-left:220px; flex:1; padding:28px 32px 60px; max-width:1200px; }
-        .oa-mobile-nav { display:none !important; }
-        .kpi-grid { grid-template-columns: repeat(6,1fr) !important; }
-        .kpi-grid-3 { grid-template-columns: repeat(3,1fr) !important; }
-        .content-grid-2 { grid-template-columns: 1fr 1fr !important; }
-        .content-grid-3 { grid-template-columns: repeat(3,1fr) !important; }
-        .alert-grid { grid-template-columns: 1fr 1fr !important; }
+        .oa-main { margin-left: 240px; padding: 32px 36px 80px; max-width: 1200px; }
+        .oa-topbar { display: none; }
+        .oa-mobile-nav { display: none !important; }
+        .kpi-grid { grid-template-columns: repeat(6, 1fr) !important; }
+        .chart-grid { grid-template-columns: 1fr 1fr !important; }
 
-        /* 모바일 */
-        @media (max-width: 768px) {
-          .oa-sidebar { display:none !important; }
-          .oa-topbar  { display:flex !important; }
-          .oa-main    { margin-left:0 !important; padding:12px 14px 80px !important; max-width:100% !important; }
-          .oa-mobile-nav { display:flex !important; }
-          .kpi-grid   { grid-template-columns: repeat(3,1fr) !important; }
-          .kpi-grid-3 { grid-template-columns: repeat(3,1fr) !important; }
-          .content-grid-2 { grid-template-columns: 1fr !important; }
-          .content-grid-3 { grid-template-columns: repeat(2,1fr) !important; }
-          .alert-grid { grid-template-columns: 1fr !important; }
+        @media (max-width: 900px) {
+          .oa-sidebar { display: none !important; }
+          .oa-topbar { display: flex !important; }
+          .oa-main { margin-left: 0 !important; padding: 14px 14px 80px !important; }
+          .oa-mobile-nav { display: flex !important; }
+          .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          .chart-grid { grid-template-columns: 1fr !important; }
         }
-        @media (max-width:480px){
-          .kpi-grid   { grid-template-columns: repeat(2,1fr) !important; }
-          .content-grid-3 { grid-template-columns: 1fr 1fr !important; }
+        @media (max-width: 480px) {
+          .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
 
-      {/* ── PC 사이드바 ── */}
+      {/* 사이드바 */}
       <aside className="oa-sidebar">
-        {/* 로고 */}
-        <div style={{padding:"24px 20px 20px",borderBottom:`1px solid ${C.border}`}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <div style={{width:36,height:36,background:`linear-gradient(135deg,${C.rose},${C.roseLt})`,
-              borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:18,boxShadow:`0 3px 12px ${C.rose}44`,flexShrink:0}}>🌸</div>
+        <div style={{ padding: "28px 20px 20px", borderBottom: `1px solid ${C.border}` }}>
+          {/* 로고 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <div
+              onClick={() => logoRef.current?.click()}
+              style={{
+                width: 40, height: 40, borderRadius: 12, overflow: "hidden", flexShrink: 0,
+                border: `1.5px dashed ${logo ? "transparent" : C.border}`,
+                background: logo ? "transparent" : C.bg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", fontSize: 18
+              }}
+              title="로고 업로드"
+            >
+              {logo ? <img src={logo} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : "＋"}
+            </div>
+            <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} />
             <div>
-              <div style={{fontSize:15,fontWeight:900,color:C.ink,letterSpacing:"-0.02em"}}>OA <span style={{color:C.rose}}>HQ</span></div>
-              <div style={{fontSize:9,color:C.inkLt,letterSpacing:"0.08em"}}>MARKETING DASHBOARD</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em" }}>OA Beauty</div>
+              <div style={{ fontSize: 10, color: C.inkLt, marginTop: 1 }}>Marketing Dashboard</div>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",
-            background:C.blush,borderRadius:10,fontSize:11,color:C.rose,fontWeight:700}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:C.rose,flexShrink:0,
-              boxShadow:pulse?`0 0 0 4px ${C.rose}33`:"none",transition:"box-shadow 0.4s",display:"inline-block"}}/>
+
+          {/* 상태 */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "8px 12px",
+            background: C.bg, borderRadius: 10, fontSize: 11, color: C.inkLt, fontWeight: 500
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: hasSheet ? C.good : C.inkLt, flexShrink: 0 }} />
             {dateStr}
           </div>
         </div>
 
-        {/* 사이드 네비 */}
-        <nav style={{flex:1,padding:"16px 12px"}}>
-          {NAVS.map(n=>{
-            const active = sec===n.id;
-            return(
-              <button key={n.id} onClick={()=>setSec(n.id)} style={{
-                width:"100%",display:"flex",alignItems:"center",gap:12,
-                padding:"11px 14px",borderRadius:11,border:"none",cursor:"pointer",
-                fontFamily:"inherit",fontWeight:700,fontSize:13,
-                marginBottom:4,transition:"all 0.18s",textAlign:"left",
-                background:active?C.rose:"transparent",
-                color:active?C.white:C.inkMid,
-                boxShadow:active?`0 4px 14px ${C.rose}44`:"none",
-                position:"relative",
+        <nav style={{ flex: 1, padding: "16px 12px" }}>
+          {NAVS.map(n => {
+            const active = sec === n.id;
+            return (
+              <button key={n.id} onClick={() => setSec(n.id)} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 14px", borderRadius: 12, border: "none", cursor: "pointer",
+                fontFamily: FONT, fontWeight: 600, fontSize: 13, marginBottom: 4,
+                textAlign: "left", transition: "all 0.15s",
+                background: active ? C.accentLt : "transparent",
+                color: active ? C.accent : C.inkMid,
               }}
-              onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background=C.cream; } }}
-              onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background="transparent"; } }}>
-                <span style={{fontSize:18,lineHeight:1}}>{n.icon}</span>
+              onMouseEnter={e => { if (!active) e.currentTarget.style.background = C.bg; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+                <span style={{ fontSize: 17, lineHeight: 1 }}>{n.icon}</span>
                 <span>{n.label}</span>
-                {n.id==="home"&&totalAlerts>0&&(
-                  <span style={{marginLeft:"auto",minWidth:20,height:20,borderRadius:10,
-                    background:active?C.white:C.bad,color:active?C.bad:C.white,
-                    fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 5px"}}>
-                    {totalAlerts}
-                  </span>
+                {n.id === "meta" && (cutAds.length + holdAds.length) > 0 && (
+                  <span style={{
+                    marginLeft: "auto", minWidth: 20, height: 20, borderRadius: 10,
+                    background: C.bad, color: C.white, fontSize: 10, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px"
+                  }}>{cutAds.length + holdAds.length}</span>
                 )}
               </button>
             );
           })}
         </nav>
 
-        {/* 사이드바 하단: 알림 요약 */}
-        {totalAlerts>0&&(
-          <div style={{margin:"0 12px 20px",padding:"12px",background:"#FFF8EC",
-            border:`1px solid ${C.warn}33`,borderRadius:12}}>
-            <div style={{fontSize:11,fontWeight:800,color:C.warn,marginBottom:6}}>🔔 확인 필요</div>
-            {orderStatus==="ok"&&orderRaw.length>0&&<div style={{fontSize:10,color:C.bad,fontWeight:700,marginBottom:3}}>📦 발주임박 {orderRaw.length}개</div>}
-            {cutAds.length>0&&<div style={{fontSize:10,color:C.bad,fontWeight:700,marginBottom:3}}>🔴 광고교체 {cutAds.length}개</div>}
-            {holdAds.length>0&&<div style={{fontSize:10,color:C.warn,marginBottom:3}}>🟡 광고보류 {holdAds.length}개</div>}
-            {dangerInv.length>0&&<div style={{fontSize:10,color:C.inkMid,marginBottom:3}}>🚨 재고위험 {dangerInv.length}종</div>}
-            {overdueIns.length>0&&<div style={{fontSize:10,color:C.inkMid,marginBottom:3}}>❗ 인사이트 {overdueIns.length}명</div>}
-            {overdueScheds.length>0&&<div style={{fontSize:10,color:C.inkMid,marginBottom:3}}>📅 기간초과 {overdueScheds.length}건</div>}
-            {urgentScheds.length>0&&<div style={{fontSize:10,color:C.inkMid}}>🔔 D-5임박 {urgentScheds.length}건</div>}
+        {/* 하단 연결 상태 */}
+        <div style={{ padding: "0 12px 24px" }}>
+          <div style={{
+            background: hasSheet ? C.goodLt : C.bg, border: `1px solid ${hasSheet ? C.good + "44" : C.border}`,
+            borderRadius: 12, padding: "12px 14px"
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: hasSheet ? C.good : C.inkLt, marginBottom: 2 }}>
+              {hasSheet ? "데이터 연결됨" : "데이터 미연결"}
+            </div>
+            <div style={{ fontSize: 10, color: C.inkLt }}>
+              {hasSheet ? `${metaRaw.length}행 · ${agg?.ads.length || 0}개 광고` : "광고 설정에서 연결"}
+            </div>
           </div>
-        )}
+        </div>
       </aside>
 
-      {/* ── 모바일 상단 헤더 ── */}
-      <header className="oa-topbar" style={{background:C.white,borderBottom:`1px solid ${C.border}`,
-        padding:"0 16px",height:54,alignItems:"center",justifyContent:"space-between",
-        position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 10px rgba(232,86,122,0.07)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:28,height:28,background:`linear-gradient(135deg,${C.rose},${C.roseLt})`,
-            borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🌸</div>
-          <div style={{fontSize:13,fontWeight:900,color:C.ink}}>OA <span style={{color:C.rose}}>HQ</span></div>
+      {/* 모바일 상단바 */}
+      <header className="oa-topbar" style={{
+        background: C.white, borderBottom: `1px solid ${C.border}`,
+        padding: "0 16px", height: 54, alignItems: "center", justifyContent: "space-between",
+        position: "sticky", top: 0, zIndex: 100
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {logo
+            ? <img src={logo} alt="logo" style={{ width: 30, height: 30, objectFit: "contain", borderRadius: 8 }} />
+            : <div style={{ width: 30, height: 30, background: C.accentLt, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>📊</div>
+          }
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>OA Beauty</div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {totalAlerts>0&&(
-            <div onClick={()=>setSec("home")} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",
-              background:"#FFF8EC",border:`1px solid ${C.warn}44`,borderRadius:20,
-              fontSize:10,color:C.warn,fontWeight:700,cursor:"pointer"}}>🔔 {totalAlerts}건</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {(cutAds.length + holdAds.length) > 0 && (
+            <div style={{ padding: "4px 10px", background: C.badLt, borderRadius: 100, fontSize: 11, color: C.bad, fontWeight: 700 }}>
+              광고 {cutAds.length + holdAds.length}건
+            </div>
           )}
-          <div style={{fontSize:10,color:C.rose,fontWeight:700,background:C.blush,
-            padding:"4px 10px",borderRadius:20,border:`1px solid ${C.rose}33`}}>{dateStr}</div>
         </div>
       </header>
 
-      {/* ── 콘텐츠 영역 ── */}
-      <div className="oa-body">
-        <main className="oa-main">
-          {sec==="home"         && <HomeSection/>}
-          {sec==="meta"         && MetaSection}
-          {sec==="metaSettings" && (
-            <MetaSettings
-              sheetUrl={sheetUrl}
-              onSheetUrlChange={(url)=>{setSheetUrl(url);}}
-              metaStatus={metaStatus}
-              metaRaw={metaRaw}
-              deletedAds={deletedAds}
-              onDeletedAdsChange={(arr)=>{setDeletedAds(arr);try{localStorage.setItem("oa_deleted_ads",JSON.stringify(arr));}catch{}}}
-              margin={margin}
-              onMarginChange={setMargin}
-              margins={margins}
-              onMarginsChange={setMargins}
-              fetchSheet={fetchSheet}
-              criteria={criteria}
-              onCriteriaChange={setCriteria}
-            />
-          )}
-          {sec==="influencer"   && InfluencerSection}
-          {sec==="inventory"    && InventorySection}
-          {sec==="schedule"     && ScheduleSection}
-        </main>
-      </div>
+      {/* 본문 */}
+      <main className="oa-main">
+        {/* 페이지 헤더 */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em" }}>
+            {sec === "meta" ? "메타광고" : "광고 설정"}
+          </div>
+          <div style={{ fontSize: 13, color: C.inkLt, marginTop: 3 }}>
+            {sec === "meta" ? "광고 성과 및 판단 현황" : "데이터 소스 · 마진 · 판단 기준"}
+          </div>
+        </div>
 
-      {/* ── 모바일 하단 탭바 ── */}
-      <nav className="oa-mobile-nav" style={{position:"fixed",bottom:0,left:0,right:0,background:C.white,
-        borderTop:`1px solid ${C.border}`,padding:"6px 0 max(6px,env(safe-area-inset-bottom))",
-        zIndex:200,boxShadow:"0 -4px 20px rgba(43,31,46,0.08)"}}>
-        {NAVS.map(n=>(
-          <button key={n.id} onClick={()=>setSec(n.id)} style={{
-            flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,
-            background:"transparent",border:"none",cursor:"pointer",padding:"4px 0",
-            fontFamily:"inherit",position:"relative"}}>
-            <span style={{fontSize:18}}>{n.icon}</span>
-            <span style={{fontSize:9,fontWeight:700,color:sec===n.id?C.rose:C.inkLt}}>{n.label}</span>
-            {sec===n.id&&<div style={{width:18,height:2,background:C.rose,borderRadius:2,marginTop:1}}/>}
-            {n.id==="home"&&totalAlerts>0&&(
-              <div style={{position:"absolute",top:0,right:"15%",width:14,height:14,borderRadius:"50%",
-                background:C.bad,display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:8,fontWeight:900,color:C.white}}>{totalAlerts}</div>
-            )}
+        {sec === "meta" && MetaSection}
+        {sec === "metaSettings" && (
+          <MetaSettings
+            sheetUrl={sheetUrl}
+            onSheetUrlChange={setSheetUrl}
+            metaStatus={metaStatus}
+            metaRaw={metaRaw}
+            deletedAds={deletedAds}
+            onDeletedAdsChange={(arr) => { setDeletedAds(arr); try { localStorage.setItem("oa_deleted_ads", JSON.stringify(arr)); } catch {} }}
+            margin={margin}
+            onMarginChange={setMargin}
+            margins={margins}
+            onMarginsChange={setMargins}
+            fetchSheet={fetchSheet}
+            criteria={criteria}
+            onCriteriaChange={setCriteria}
+          />
+        )}
+      </main>
+
+      {/* 모바일 하단 탭 */}
+      <nav className="oa-mobile-nav" style={{
+        position: "fixed", bottom: 0, left: 0, right: 0,
+        background: C.white, borderTop: `1px solid ${C.border}`,
+        padding: "8px 0 max(8px, env(safe-area-inset-bottom))",
+        zIndex: 200, display: "flex"
+      }}>
+        {NAVS.map(n => (
+          <button key={n.id} onClick={() => setSec(n.id)} style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+            background: "transparent", border: "none", cursor: "pointer", padding: "4px 0", fontFamily: FONT
+          }}>
+            <span style={{ fontSize: 20 }}>{n.icon}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: sec === n.id ? C.accent : C.inkLt }}>{n.label}</span>
+            {sec === n.id && <div style={{ width: 16, height: 2, background: C.accent, borderRadius: 1 }} />}
           </button>
         ))}
       </nav>
-
-      {/* ── 전역 모달 — 섹션 밖에서 렌더해서 리렌더 격리 ── */}
-      {infModalData&&<InfModalComp
-        mode={infModalData.mode}
-        initial={infModalData.initial}
-        onSave={(item)=>{
-          if(infModalData.mode==="edit"){
-            setInfs(arr=>arr.map(x=>x.id===item.id?item:x));
-          } else {
-            setInfs(arr=>[...arr,{...item,id:Date.now()}]);
-          }
-          setInfModalData(null);
-        }}
-        onClose={()=>setInfModalData(null)}
-      />}
-      {insModalData&&<InsModalComp
-        initial={insModalData.initial}
-        onSave={(item)=>{
-          setInfs(arr=>arr.map(x=>x.id===item.id?{...x,reach:item.reach,saves:item.saves,clicks:item.clicks,conv:item.conv}:x));
-          setInsModalData(null);
-        }}
-        onClose={()=>setInsModalData(null)}
-      />}
-      {invModalData&&<InvModalComp
-        mode={invModalData.mode}
-        initial={invModalData.initial}
-        onSave={(item)=>{
-          if(invModalData.mode==="edit"){
-            setInv(arr=>arr.map(x=>x.id===item.id?item:x));
-          } else {
-            setInv(arr=>[...arr,{...item,id:Date.now()}]);
-          }
-          setInvModalData(null);
-        }}
-        onClose={()=>setInvModalData(null)}
-      />}
-      {creativeAd&&<CreativeModal
-        ad={creativeAd}
-        onClose={()=>setCreativeAd(null)}
-        campTab={campTab}
-        margin={margin}
-        creatives={creatives}
-        onUpload={addCreatives}
-        onRemove={removeCreative}
-      />}
-      {schModalData&&<SchModalComp
-        mode={schModalData.mode}
-        initial={schModalData.initial}
-        onSave={(item)=>{
-          if(schModalData.mode==="edit"){
-            setSch(arr=>arr.map(x=>x.id===item.id?item:x));
-          } else {
-            setSch(arr=>[...arr,{...item,id:Date.now()}]);
-          }
-          setSchModalData(null);
-        }}
-        onClose={()=>setSchModalData(null)}
-      />}
     </div>
   );
 }

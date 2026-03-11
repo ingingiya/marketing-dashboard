@@ -71,7 +71,7 @@ export async function saveAdImagesMeta(images) {
 
 export async function uploadAdImage(file, fileName) {
   const ext = file.name.split(".").pop();
-  const path = `${fileName}.${ext}`;
+  const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const uploadRes = await fetch(
     `${SUPA_URL}/storage/v1/object/${STORAGE_BUCKET}/${encodeURIComponent(path)}`,
     {

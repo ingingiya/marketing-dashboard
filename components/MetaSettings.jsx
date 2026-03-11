@@ -160,8 +160,10 @@ function saveLogoToLS(dataUrl) {
 // 광고 이미지 카드 — 인라인 이름 수정
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function AdImageCard({ img, onNameChange, onRemove }) {
-  const [editing, setEditing] = useState(false);
-  const [draft,   setDraft]   = useState(img.name);
+  const [editing,  setEditing]  = useState(false);
+  const [draft,    setDraft]    = useState(img.name);
+  const [hovered,  setHovered]  = useState(false);
+  const [pos,      setPos]      = useState({ x: 0, y: 0 });
   const inputRef = useRef();
 
   function confirm() {
@@ -171,13 +173,48 @@ function AdImageCard({ img, onNameChange, onRemove }) {
     setEditing(false);
   }
 
+  function handleMouseMove(e) {
+    setPos({ x: e.clientX, y: e.clientY });
+  }
+
   return (
     <div style={{
       background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14,
       overflow: "hidden", display: "flex", flexDirection: "column"
     }}>
+      {/* 이미지 호버 프리뷰 — 포털처럼 fixed */}
+      {hovered && (
+        <div style={{
+          position: "fixed",
+          left: pos.x + 16,
+          top: pos.y - 160,
+          zIndex: 9999,
+          pointerEvents: "none",
+          transform: "translateY(0)",
+        }}>
+          <img src={img.dataUrl} alt={img.name} style={{
+            width: 260, height: 260, objectFit: "contain",
+            borderRadius: 16, border: `1px solid ${C.border}`,
+            background: C.white,
+            boxShadow: "0 16px 48px rgba(0,0,0,0.18)",
+            display: "block",
+          }} />
+          <div style={{
+            marginTop: 6, textAlign: "center", fontSize: 11, fontWeight: 600,
+            color: C.white, background: "rgba(0,0,0,0.55)",
+            borderRadius: 8, padding: "4px 10px", display: "inline-block",
+            maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+          }}>{img.name}</div>
+        </div>
+      )}
+
       {/* 썸네일 */}
-      <div style={{ position: "relative", aspectRatio: "1/1", background: C.border }}>
+      <div
+        style={{ position: "relative", aspectRatio: "1/1", background: C.border, cursor: "zoom-in" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onMouseMove={handleMouseMove}
+      >
         <img src={img.dataUrl} alt={img.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         <button onClick={onRemove} style={{
           position: "absolute", top: 6, right: 6,

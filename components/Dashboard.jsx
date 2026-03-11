@@ -269,6 +269,42 @@ const StatusBadge = ({ label, color, bg }) => (
   }}>{label}</span>
 );
 
+// 썸네일 hover 확대 프리뷰
+function ThumbPreview({ dataUrl, name }) {
+  const [hovered, setHovered] = useState(false);
+  const [pos,     setPos]     = useState({ x: 0, y: 0 });
+  return (
+    <div
+      style={{ position: "relative", flexShrink: 0, cursor: "zoom-in" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onMouseMove={e => setPos({ x: e.clientX, y: e.clientY })}
+    >
+      <img src={dataUrl} alt={name} style={{
+        width: 40, height: 40, borderRadius: 8, objectFit: "cover",
+        border: `1px solid ${C.border}`, display: "block"
+      }} />
+      {hovered && (
+        <div style={{
+          position: "fixed", left: pos.x + 16, top: pos.y - 160,
+          zIndex: 9999, pointerEvents: "none"
+        }}>
+          <img src={dataUrl} alt={name} style={{
+            width: 240, height: 240, objectFit: "contain", borderRadius: 14,
+            border: `1px solid ${C.border}`, background: C.white,
+            boxShadow: "0 16px 48px rgba(0,0,0,0.18)", display: "block"
+          }} />
+          <div style={{
+            marginTop: 6, fontSize: 11, fontWeight: 600, color: C.white,
+            background: "rgba(0,0,0,0.55)", borderRadius: 8, padding: "4px 10px",
+            maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+          }}>{name}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // KPI 카드
 const KpiCard = ({ icon, label, value, note, accentColor }) => (
   <div style={{
@@ -722,9 +758,9 @@ export default function OaDashboard() {
                                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                                     <td style={{ padding: "10px 12px", maxWidth: 220 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                        {/* 썸네일 */}
+                                        {/* 썸네일 + hover 확대 */}
                                         {thumb ? (
-                                          <img src={thumb.dataUrl} alt={c.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: `1px solid ${C.border}` }} />
+                                          <ThumbPreview dataUrl={thumb.dataUrl} name={c.name} />
                                         ) : (
                                           <div style={{ width: 40, height: 40, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: C.inkLt }}>📷</div>
                                         )}

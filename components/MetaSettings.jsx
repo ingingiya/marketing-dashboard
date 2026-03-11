@@ -128,8 +128,16 @@ const DEFAULT_CRITERIA = {
   use_roas: false,
 };
 
-const LS_CRITERIA = "oa_ad_criteria_v1";
-const LS_LOGO     = "oa_logo_v1";
+const LS_CRITERIA  = "oa_ad_criteria_v1";
+const LS_LOGO      = "oa_logo_v1";
+const LS_AD_IMAGES = "oa_ad_images_v1";
+
+function loadAdImages() {
+  try { return JSON.parse(localStorage.getItem(LS_AD_IMAGES) || "[]"); } catch { return []; }
+}
+function saveAdImagesToLS(imgs) {
+  try { localStorage.setItem(LS_AD_IMAGES, JSON.stringify(imgs)); } catch {}
+}
 
 function loadCriteria() {
   try {
@@ -149,6 +157,81 @@ function saveLogoToLS(dataUrl) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 광고 이미지 카드 — 인라인 이름 수정
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AdImageCard({ img, onNameChange, onRemove }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(img.name);
+  const inputRef = useRef();
+
+  function confirm() {
+    const v = draft.trim();
+    if (v) onNameChange(v);
+    else setDraft(img.name);
+    setEditing(false);
+  }
+
+  return (
+    <div style={{
+      background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14,
+      overflow: "hidden", display: "flex", flexDirection: "column"
+    }}>
+      {/* 썸네일 */}
+      <div style={{ position: "relative", aspectRatio: "1/1", background: C.border }}>
+        <img src={img.dataUrl} alt={img.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <button onClick={onRemove} style={{
+          position: "absolute", top: 6, right: 6,
+          width: 22, height: 22, borderRadius: "50%",
+          background: "rgba(0,0,0,0.45)", border: "none", cursor: "pointer",
+          color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center"
+        }}>✕</button>
+      </div>
+
+      {/* 이름 */}
+      <div style={{ padding: "8px 10px" }}>
+        {editing ? (
+          <div style={{ display: "flex", gap: 4 }}>
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") confirm(); if (e.key === "Escape") { setDraft(img.name); setEditing(false); } }}
+              autoFocus
+              style={{
+                flex: 1, minWidth: 0, padding: "5px 8px", borderRadius: 8,
+                border: `1.5px solid #007AFF`, fontSize: 11, fontFamily: "inherit",
+                background: "#fff", color: "#1C1C1E", outline: "none"
+              }}
+            />
+            <button onClick={confirm} style={{
+              background: "#007AFF", color: "#fff", border: "none",
+              borderRadius: 8, padding: "5px 8px", fontSize: 11,
+              fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0
+            }}>✓</button>
+          </div>
+        ) : (
+          <div
+            onClick={() => { setDraft(img.name); setEditing(true); }}
+            title="클릭해서 광고명 수정"
+            style={{
+              fontSize: 11, fontWeight: 600, color: "#1C1C1E",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              cursor: "text", padding: "4px 4px",
+              borderRadius: 6, border: "1px solid transparent",
+              transition: "border-color 0.15s"
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = "#E5E5EA"}
+            onMouseLeave={e => e.currentTarget.style.borderColor = "transparent"}
+          >
+            {img.name}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function MetaSettings({
   sheetUrl = "",
   onSheetUrlChange,
@@ -163,6 +246,7 @@ export default function MetaSettings({
   fetchSheet,
   criteria: criteriaProp,
   onCriteriaChange,
+  onAdImagesChange,
 }) {
   const [sheetInput,   setSheetInput]   = useState(sheetUrl);
   const [sheetEditing, setSheetEditing] = useState(false);
@@ -174,7 +258,9 @@ export default function MetaSettings({
   const [criteriaInput,setCriteriaInput] = useState(() => criteriaProp || loadCriteria());
   const [toast,        setToast]        = useState("");
   const [logo,         setLogo]         = useState(() => loadLogo());
-  const logoRef = useRef();
+  const [adImages,     setAdImages]     = useState(() => loadAdImages()); // [{id, name, dataUrl}]
+  const logoRef  = useRef();
+  const imgRef   = useRef();
 
   function showToast(msg) {
     setToast(msg);
@@ -246,6 +332,58 @@ export default function MetaSettings({
     setLogo(null);
     try { localStorage.removeItem(LS_LOGO); } catch {}
     showToast("로고 삭제됨");
+  }
+
+  // 광고 이미지 업로드 (여러 장)
+  function handleAdImagesUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    let loaded = 0;
+    const newImgs = [];
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        // 파일명에서 확장자 제거 → 광고명
+        const name = file.name.replace(/\.[^.]+$/, "");
+        newImgs.push({ id: Date.now() + Math.random(), name, dataUrl: ev.target.result });
+        loaded++;
+        if (loaded === files.length) {
+          setAdImages(prev => {
+            const merged = [...prev];
+            newImgs.forEach(ni => {
+              const idx = merged.findIndex(x => x.name === ni.name);
+              if (idx >= 0) merged[idx] = ni;
+              else merged.push(ni);
+            });
+            saveAdImagesToLS(merged);
+            onAdImagesChange?.(merged);
+            return merged;
+          });
+          showToast(`이미지 ${files.length}장 업로드됨`);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  }
+
+  function updateAdImageName(id, newName) {
+    setAdImages(prev => {
+      const next = prev.map(x => x.id === id ? { ...x, name: newName } : x);
+      saveAdImagesToLS(next);
+      onAdImagesChange?.(next);
+      return next;
+    });
+  }
+
+  function removeAdImage(id) {
+    setAdImages(prev => {
+      const next = prev.filter(x => x.id !== id);
+      saveAdImagesToLS(next);
+      onAdImagesChange?.(next);
+      return next;
+    });
+    showToast("이미지 삭제됨");
   }
 
   const hasSheet = metaStatus === "ok" && metaRaw.length > 0;
@@ -580,7 +718,61 @@ export default function MetaSettings({
         </div>
       </Card>
 
-      {/* ── 4. 시트 컬럼 가이드 ──────────────────────── */}
+      {/* ── 4. 광고 소재 이미지 ──────────────────────── */}
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <SectionTitle title="광고 소재 이미지" sub="파일명 = 광고명으로 설정하면 캠페인 테이블에 자동 매칭" />
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <label style={{ cursor: "pointer" }}>
+              <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleAdImagesUpload} />
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+                background: C.accent, color: C.white, cursor: "pointer"
+              }}>
+                이미지 업로드
+              </span>
+            </label>
+            {adImages.length > 0 && (
+              <Btn variant="neutral" small onClick={() => { setAdImages([]); saveAdImagesToLS([]); onAdImagesChange?.([]); showToast("전체 삭제됨"); }}>
+                전체 삭제
+              </Btn>
+            )}
+          </div>
+        </div>
+
+        {adImages.length === 0 ? (
+          <label style={{ cursor: "pointer" }}>
+            <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleAdImagesUpload} />
+            <div style={{
+              border: `1.5px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px",
+              textAlign: "center", color: C.inkLt
+            }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.inkMid, marginBottom: 4 }}>이미지를 여기에 드래그하거나 클릭해서 업로드</div>
+              <div style={{ fontSize: 11 }}>파일명이 광고명으로 자동 설정돼요 · 여러 장 한번에 가능</div>
+            </div>
+          </label>
+        ) : (
+          <>
+            <InfoBadge color={C.inkMid} bg={C.bg}>
+              파일명을 광고명과 동일하게 수정하면 캠페인 탭에서 썸네일이 자동으로 표시돼요
+            </InfoBadge>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+              {adImages.map(img => (
+                <AdImageCard
+                  key={img.id}
+                  img={img}
+                  onNameChange={v => updateAdImageName(img.id, v)}
+                  onRemove={() => removeAdImage(img.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* ── 5. 시트 컬럼 가이드 ──────────────────────── */}
       <Card>
         <SectionTitle title="시트 컬럼 가이드" sub="메타 광고관리자 내보내기 컬럼 매핑" />
         <div style={{ overflowX: "auto" }}>

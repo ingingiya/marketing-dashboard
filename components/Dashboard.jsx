@@ -48,11 +48,12 @@ const DEFAULT_CRITERIA = {
   roas_great: 3.0, roas_keep: 2.0, roas_hold: 1.0, use_roas: false,
 };
 
-const LS_SHEET_URL = "oa_sheet_url";
-const LS_MARGIN    = "oa_margin_v7";
-const LS_MARGINS   = "oa_margins_v7";
-const LS_CRITERIA  = "oa_ad_criteria_v1";
-const LS_LOGO      = "oa_logo_v1";
+const LS_SHEET_URL  = "oa_sheet_url";
+const LS_MARGIN     = "oa_margin_v7";
+const LS_MARGINS    = "oa_margins_v7";
+const LS_CRITERIA   = "oa_ad_criteria_v1";
+const LS_LOGO       = "oa_logo_v1";
+const LS_AD_IMAGES  = "oa_ad_images_v1";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 유틸
@@ -307,6 +308,9 @@ export default function OaDashboard() {
   const [deletedAds, setDeletedAds] = useState(() => {
     try { return JSON.parse(localStorage.getItem("oa_deleted_ads") || "[]"); } catch { return []; }
   });
+  const [adImages, setAdImages] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LS_AD_IMAGES) || "[]"); } catch { return []; }
+  });
 
   useEffect(() => {
     if (sheetUrlLoaded && sheetUrl) fetchSheet(sheetUrl);
@@ -393,10 +397,11 @@ export default function OaDashboard() {
       if (!key) return;
       if (!byAd[key]) byAd[key] = { ...r, name: key };
       else {
-        byAd[key].spend      += r.spend;
-        byAd[key].clicks     += r.clicks;
-        byAd[key].lpv        += r.lpv;
-        byAd[key].purchases  += r.purchases;
+        byAd[key].spend       += r.spend;
+        byAd[key].clicks      += r.clicks;
+        byAd[key].lpv         += r.lpv;
+        byAd[key].purchases   += r.purchases;
+        byAd[key].convValue   += r.convValue;
         byAd[key].impressions += r.impressions;
       }
     });
@@ -406,17 +411,21 @@ export default function OaDashboard() {
   const cutAds  = adJudge.filter(ad => {
     const m = getAdMargin(ad.name, ad.campaign, margins, margin);
     const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
-    const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+    const convJ = criteria.use_roas
+      ? roasStatus(ad.convValue, ad.spend, criteria)
+      : cpaStatus(ad.spend, ad.purchases, m, criteria);
     const lpvR = lpvRateStatus(ad.clicks, ad.lpv, criteria);
-    return [lpvC, cpaJ, lpvR].some(s => s?.label === "컷" || s?.label === "랜딩문제");
+    return [lpvC, convJ, lpvR].some(s => s?.label === "컷" || s?.label === "랜딩문제");
   });
   const holdAds = adJudge.filter(ad => {
     if (cutAds.includes(ad)) return false;
     const m = getAdMargin(ad.name, ad.campaign, margins, margin);
     const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
-    const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+    const convJ = criteria.use_roas
+      ? roasStatus(ad.convValue, ad.spend, criteria)
+      : cpaStatus(ad.spend, ad.purchases, m, criteria);
     const ctrJ = ctrStatus(ad.clicks, ad.impressions, criteria);
-    return [lpvC, cpaJ, ctrJ].some(s => s?.label === "보류" || s?.label === "보통");
+    return [lpvC, convJ, ctrJ].some(s => s?.label === "보류" || s?.label === "보통");
   });
 
   const NAVS = [
@@ -706,15 +715,26 @@ export default function OaDashboard() {
                                 const lpvC = lpvCostStatus(c.spend, c.lpv, criteria);
                                 const cpaJ = criteria.use_roas ? roasStatus(c.convValue, c.spend, criteria) : cpaStatus(c.spend, c.purchases, m, criteria);
                                 const ctrJ = ctrStatus(c.clicks, c.impressions, criteria);
+                                const thumb = adImages.find(img => img.name === c.name);
                                 return (
                                   <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}
                                     onMouseEnter={e => e.currentTarget.style.background = C.bg}
                                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                                    <td style={{ padding: "12px 12px", maxWidth: 200 }}>
-                                      <div style={{ fontWeight: 600, color: C.ink, fontSize: 12, wordBreak: "break-all", marginBottom: 4 }}>{c.name}</div>
-                                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                        {lpvC && <StatusBadge label={`LPV ${lpvC.label}`} color={lpvC.color} bg={lpvC.bg} />}
-                                        {cpaJ && <StatusBadge label={`${criteria.use_roas ? "ROAS" : "CPA"} ${cpaJ.label}`} color={cpaJ.color} bg={cpaJ.bg} />}
+                                    <td style={{ padding: "10px 12px", maxWidth: 220 }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                        {/* 썸네일 */}
+                                        {thumb ? (
+                                          <img src={thumb.dataUrl} alt={c.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: `1px solid ${C.border}` }} />
+                                        ) : (
+                                          <div style={{ width: 40, height: 40, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: C.inkLt }}>📷</div>
+                                        )}
+                                        <div style={{ minWidth: 0 }}>
+                                          <div style={{ fontWeight: 600, color: C.ink, fontSize: 12, wordBreak: "break-all", marginBottom: 4 }}>{c.name}</div>
+                                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                            {lpvC && <StatusBadge label={`LPV ${lpvC.label}`} color={lpvC.color} bg={lpvC.bg} />}
+                                            {cpaJ && <StatusBadge label={`${criteria.use_roas ? "ROAS" : "CPA"} ${cpaJ.label}`} color={cpaJ.color} bg={cpaJ.bg} />}
+                                          </div>
+                                        </div>
                                       </div>
                                     </td>
                                     <td style={{ padding: "12px 12px", maxWidth: 140 }}>
@@ -798,8 +818,13 @@ export default function OaDashboard() {
                   const m = getAdMargin(ad.name, ad.campaign, margins, margin);
                   const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
                   const lpvR = lpvRateStatus(ad.clicks, ad.lpv, criteria);
-                  const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+                  const convJ = criteria.use_roas
+                    ? roasStatus(ad.convValue, ad.spend, criteria)
+                    : cpaStatus(ad.spend, ad.purchases, m, criteria);
                   const ctrJ = ctrStatus(ad.clicks, ad.impressions, criteria);
+                  const convLabel = criteria.use_roas
+                    ? `ROAS ${convJ?.label} (${convJ?.roas}x)`
+                    : `CPA ${convJ?.label} (₩${convJ?.cpa?.toLocaleString()})`;
                   return (
                     <Card key={i} style={{ border: `1px solid ${C.bad}44` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
@@ -812,7 +837,7 @@ export default function OaDashboard() {
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                         {lpvC && <StatusBadge label={`LPV단가 ${lpvC.label} (₩${lpvC.cost})`} color={lpvC.color} bg={lpvC.bg} />}
                         {lpvR && <StatusBadge label={`LPV전환율 ${lpvR.label} (${lpvR.rate}%)`} color={lpvR.color} bg={lpvR.bg} />}
-                        {cpaJ && <StatusBadge label={`CPA ${cpaJ.label} (₩${cpaJ.cpa?.toLocaleString()})`} color={cpaJ.color} bg={cpaJ.bg} />}
+                        {convJ && <StatusBadge label={convLabel} color={convJ.color} bg={convJ.bg} />}
                         {ctrJ && <StatusBadge label={`CTR ${ctrJ.label} (${ctrJ.ctr}%)`} color={ctrJ.color} bg={ctrJ.bg} />}
                       </div>
                       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -820,7 +845,8 @@ export default function OaDashboard() {
                           { l: "광고비", v: `₩${Math.round(ad.spend / 1000)}K` },
                           { l: "클릭", v: (ad.clicks || 0).toLocaleString() },
                           { l: "LPV", v: (ad.lpv || 0).toLocaleString() },
-                          ...(ad.purchases > 0 ? [{ l: "구매", v: ad.purchases }] : []),
+                          ...(criteria.use_roas && ad.convValue > 0 ? [{ l: "ROAS", v: `${(ad.convValue / ad.spend).toFixed(2)}x` }] : []),
+                          ...(!criteria.use_roas && ad.purchases > 0 ? [{ l: "구매", v: ad.purchases }] : []),
                         ].map(({ l, v }) => (
                           <div key={l} style={{ textAlign: "center" }}>
                             <div style={{ fontSize: 10, color: C.inkLt }}>{l}</div>
@@ -834,7 +860,9 @@ export default function OaDashboard() {
                 {holdAds.map((ad, i) => {
                   const m = getAdMargin(ad.name, ad.campaign, margins, margin);
                   const lpvC = lpvCostStatus(ad.spend, ad.lpv, criteria);
-                  const cpaJ = cpaStatus(ad.spend, ad.purchases, m, criteria);
+                  const convJ = criteria.use_roas
+                    ? roasStatus(ad.convValue, ad.spend, criteria)
+                    : cpaStatus(ad.spend, ad.purchases, m, criteria);
                   const ctrJ = ctrStatus(ad.clicks, ad.impressions, criteria);
                   return (
                     <Card key={i} style={{ border: `1px solid ${C.warn}44` }}>
@@ -847,7 +875,7 @@ export default function OaDashboard() {
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {lpvC && <StatusBadge label={`LPV단가 ${lpvC.label}`} color={lpvC.color} bg={lpvC.bg} />}
-                        {cpaJ && <StatusBadge label={`CPA ${cpaJ.label}`} color={cpaJ.color} bg={cpaJ.bg} />}
+                        {convJ && <StatusBadge label={`${criteria.use_roas ? "ROAS" : "CPA"} ${convJ.label}`} color={convJ.color} bg={convJ.bg} />}
                         {ctrJ && <StatusBadge label={`CTR ${ctrJ.label}`} color={ctrJ.color} bg={ctrJ.bg} />}
                       </div>
                     </Card>
@@ -920,8 +948,7 @@ export default function OaDashboard() {
             </div>
             <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} />
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em" }}>OA Beauty</div>
-              <div style={{ fontSize: 10, color: C.inkLt, marginTop: 1 }}>Marketing Dashboard</div>
+              <div style={{ fontSize: 11, color: C.inkLt, marginTop: 1 }}>Marketing Dashboard</div>
             </div>
           </div>
 
@@ -990,7 +1017,6 @@ export default function OaDashboard() {
             ? <img src={logo} alt="logo" style={{ width: 30, height: 30, objectFit: "contain", borderRadius: 8 }} />
             : <div style={{ width: 30, height: 30, background: C.accentLt, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>📊</div>
           }
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>OA Beauty</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {(cutAds.length + holdAds.length) > 0 && (
@@ -1029,6 +1055,7 @@ export default function OaDashboard() {
             fetchSheet={fetchSheet}
             criteria={criteria}
             onCriteriaChange={setCriteria}
+            onAdImagesChange={(imgs) => setAdImages(imgs)}
           />
         )}
       </main>

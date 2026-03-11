@@ -2,7 +2,7 @@
 
 const SUPA_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPA_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const STORAGE_BUCKET = "ad-images";
+const STORAGE_BUCKET = "ad-image";
 
 function headers(extra = {}) {
   return {

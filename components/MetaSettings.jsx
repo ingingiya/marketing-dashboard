@@ -274,8 +274,11 @@ export default function MetaSettings({
   onSheetUrlChange,
   metaStatus = "idle",
   metaRaw = [],
+  // deletedAds: [{id, ad_name, deleted_at}]
   deletedAds = [],
-  onDeletedAdsChange,
+  onDeleteAdd,         // (adName) => Promise
+  onDeletedRestore,    // (id) => Promise
+  onDeletedRestoreAll, // () => Promise
   margin = 30000,
   onMarginChange,
   margins = [],
@@ -283,21 +286,26 @@ export default function MetaSettings({
   fetchSheet,
   criteria: criteriaProp,
   onCriteriaChange,
-  onAdImagesChange,
+  // 이미지: [{id, name, url, path}]
+  adImages = [],
+  onAdImageUpload,     // (file, name) => Promise<{id,name,url,path}>
+  onAdImageRename,     // (id, newName) => Promise
+  onAdImageRemove,     // (id) => Promise
+  onAdImagesRemoveAll, // () => Promise
 }) {
-  const [sheetInput,   setSheetInput]   = useState(sheetUrl);
-  const [sheetEditing, setSheetEditing] = useState(false);
-  const [marginInput,  setMarginInput]  = useState(String(margin));
+  const [sheetInput,    setSheetInput]    = useState(sheetUrl);
+  const [sheetEditing,  setSheetEditing]  = useState(false);
+  const [marginInput,   setMarginInput]   = useState(String(margin));
   const [editingMargin, setEditingMargin] = useState(null);
-  const [newKeyword,   setNewKeyword]   = useState("");
-  const [newMarginVal, setNewMarginVal] = useState("");
-  const [criteria,     setCriteriaState] = useState(() => criteriaProp || loadCriteria());
-  const [criteriaInput,setCriteriaInput] = useState(() => criteriaProp || loadCriteria());
-  const [toast,        setToast]        = useState("");
-  const [logo,         setLogo]         = useState(() => loadLogo());
-  const [adImages,     setAdImages]     = useState(() => loadAdImages()); // [{id, name, dataUrl}]
-  const logoRef  = useRef();
-  const imgRef   = useRef();
+  const [newKeyword,    setNewKeyword]    = useState("");
+  const [newMarginVal,  setNewMarginVal]  = useState("");
+  const [criteria,      setCriteriaState] = useState(() => criteriaProp || loadCriteria());
+  const [criteriaInput, setCriteriaInput] = useState(() => criteriaProp || loadCriteria());
+  const [toast,         setToast]         = useState("");
+  const [logo,          setLogo]          = useState(() => loadLogo());
+  const [uploading,     setUploading]     = useState(false);
+  const logoRef = useRef();
+  const imgRef  = useRef();
 
   function showToast(msg) {
     setToast(msg);
@@ -348,11 +356,27 @@ export default function MetaSettings({
     onMarginsChange?.(margins.filter(x => x.id !== id));
     showToast("키워드 삭제됨");
   }
-  function restoreDeletedAds() {
-    onDeletedAdsChange?.([]);
-    try { localStorage.removeItem("oa_deleted_ads"); } catch {}
-    showToast("숨긴 광고 복원됨");
+
+  // 광고 이미지 업로드 — Supabase Storage
+  async function handleAdImagesUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const name = file.name.replace(/\.[^.]+$/, "");
+        await onAdImageUpload?.(file, name);
+      }
+      showToast(`이미지 ${files.length}장 업로드됨`);
+    } catch (err) {
+      showToast("업로드 실패 — 다시 시도해줘");
+      console.error(err);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   }
+
   function handleLogoUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -369,58 +393,6 @@ export default function MetaSettings({
     setLogo(null);
     try { localStorage.removeItem(LS_LOGO); } catch {}
     showToast("로고 삭제됨");
-  }
-
-  // 광고 이미지 업로드 (여러 장)
-  function handleAdImagesUpload(e) {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    let loaded = 0;
-    const newImgs = [];
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        // 파일명에서 확장자 제거 → 광고명
-        const name = file.name.replace(/\.[^.]+$/, "");
-        newImgs.push({ id: Date.now() + Math.random(), name, dataUrl: ev.target.result });
-        loaded++;
-        if (loaded === files.length) {
-          setAdImages(prev => {
-            const merged = [...prev];
-            newImgs.forEach(ni => {
-              const idx = merged.findIndex(x => x.name === ni.name);
-              if (idx >= 0) merged[idx] = ni;
-              else merged.push(ni);
-            });
-            saveAdImagesToLS(merged);
-            onAdImagesChange?.(merged);
-            return merged;
-          });
-          showToast(`이미지 ${files.length}장 업로드됨`);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
-  }
-
-  function updateAdImageName(id, newName) {
-    setAdImages(prev => {
-      const next = prev.map(x => x.id === id ? { ...x, name: newName } : x);
-      saveAdImagesToLS(next);
-      onAdImagesChange?.(next);
-      return next;
-    });
-  }
-
-  function removeAdImage(id) {
-    setAdImages(prev => {
-      const next = prev.filter(x => x.id !== id);
-      saveAdImagesToLS(next);
-      onAdImagesChange?.(next);
-      return next;
-    });
-    showToast("이미지 삭제됨");
   }
 
   const hasSheet = metaStatus === "ok" && metaRaw.length > 0;
@@ -524,9 +496,29 @@ export default function MetaSettings({
         )}
 
         {deletedAds.length > 0 && !sheetEditing && (
-          <Btn variant="ghost" small onClick={restoreDeletedAds} style={{ marginTop: 10 }}>
-            숨긴 광고 복원 ({deletedAds.length})
-          </Btn>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.inkMid }}>숨긴 광고 ({deletedAds.length})</div>
+              <Btn variant="ghost" small onClick={async () => { await onDeletedRestoreAll?.(); showToast("전체 복원됨"); }}>
+                전체 복원
+              </Btn>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {deletedAds.map(d => (
+                <div key={d.id} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "8px 12px", background: C.bg, borderRadius: 10, border: `1px solid ${C.border}`
+                }}>
+                  <div style={{ fontSize: 12, color: C.inkMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                    {d.ad_name}
+                  </div>
+                  <Btn variant="ghost" small onClick={async () => { await onDeletedRestore?.(d.id); showToast("복원됨"); }} style={{ marginLeft: 8, flexShrink: 0 }}>
+                    복원
+                  </Btn>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </Card>
 
@@ -760,18 +752,18 @@ export default function MetaSettings({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <SectionTitle title="광고 소재 이미지" sub="파일명 = 광고명으로 설정하면 캠페인 테이블에 자동 매칭" />
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <label style={{ cursor: "pointer" }}>
-              <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleAdImagesUpload} />
+            <label style={{ cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.5 : 1 }}>
+              <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleAdImagesUpload} disabled={uploading} />
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "8px 14px", borderRadius: 10, fontSize: 13, fontWeight: 600,
-                background: C.accent, color: C.white, cursor: "pointer"
+                background: C.accent, color: C.white, cursor: "inherit"
               }}>
-                이미지 업로드
+                {uploading ? "업로드 중..." : "이미지 업로드"}
               </span>
             </label>
             {adImages.length > 0 && (
-              <Btn variant="neutral" small onClick={() => { setAdImages([]); saveAdImagesToLS([]); onAdImagesChange?.([]); showToast("전체 삭제됨"); }}>
+              <Btn variant="neutral" small onClick={async () => { await onAdImagesRemoveAll?.(); showToast("전체 삭제됨"); }}>
                 전체 삭제
               </Btn>
             )}
@@ -779,15 +771,21 @@ export default function MetaSettings({
         </div>
 
         {adImages.length === 0 ? (
-          <label style={{ cursor: "pointer" }}>
-            <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleAdImagesUpload} />
+          <label style={{ cursor: uploading ? "not-allowed" : "pointer" }}>
+            <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleAdImagesUpload} disabled={uploading} />
             <div style={{
               border: `1.5px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px",
               textAlign: "center", color: C.inkLt
             }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.inkMid, marginBottom: 4 }}>이미지를 여기에 드래그하거나 클릭해서 업로드</div>
-              <div style={{ fontSize: 11 }}>파일명이 광고명으로 자동 설정돼요 · 여러 장 한번에 가능</div>
+              {uploading ? (
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.accent }}>업로드 중...</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.inkMid, marginBottom: 4 }}>클릭해서 업로드</div>
+                  <div style={{ fontSize: 11 }}>파일명이 광고명으로 자동 설정돼요 · 여러 장 한번에 가능</div>
+                </>
+              )}
             </div>
           </label>
         ) : (
@@ -799,9 +797,9 @@ export default function MetaSettings({
               {adImages.map(img => (
                 <AdImageCard
                   key={img.id}
-                  img={img}
-                  onNameChange={v => updateAdImageName(img.id, v)}
-                  onRemove={() => removeAdImage(img.id)}
+                  img={{ ...img, dataUrl: img.url }}
+                  onNameChange={v => onAdImageRename?.(img.id, v).then(() => showToast("이름 변경됨"))}
+                  onRemove={() => onAdImageRemove?.(img.id).then(() => showToast("이미지 삭제됨"))}
                 />
               ))}
             </div>

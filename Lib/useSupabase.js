@@ -1,0 +1,129 @@
+// lib/useSupabase.js
+// @supabase/supabase-js 없이 fetch로 직접 REST API 호출
+
+const SUPA_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPA_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const STORAGE_BUCKET = "ad-images";
+
+function headers(extra = {}) {
+  return {
+    "apikey":        SUPA_KEY,
+    "Authorization": `Bearer ${SUPA_KEY}`,
+    "Content-Type":  "application/json",
+    ...extra,
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Settings (key-value)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export async function getSetting(key) {
+  const res = await fetch(
+    `${SUPA_URL}/rest/v1/settings?key=eq.${encodeURIComponent(key)}&select=value`,
+    { headers: headers() }
+  );
+  const data = await res.json();
+  return data?.[0]?.value ?? null;
+}
+
+export async function setSetting(key, value) {
+  await fetch(`${SUPA_URL}/rest/v1/settings`, {
+    method: "POST",
+    headers: headers({ "Prefer": "resolution=merge-duplicates" }),
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Deleted Ads (soft delete + 복원)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export async function getDeletedAds() {
+  const res = await fetch(
+    `${SUPA_URL}/rest/v1/deleted_ads?select=id,ad_name,deleted_at&order=deleted_at.desc`,
+    { headers: headers() }
+  );
+  return await res.json(); // [{id, ad_name, deleted_at}]
+}
+
+export async function addDeletedAd(adName) {
+  await fetch(`${SUPA_URL}/rest/v1/deleted_ads`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ ad_name: adName }),
+  });
+}
+
+export async function restoreDeletedAd(id) {
+  await fetch(`${SUPA_URL}/rest/v1/deleted_ads?id=eq.${id}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
+}
+
+export async function restoreAllDeletedAds() {
+  await fetch(`${SUPA_URL}/rest/v1/deleted_ads`, {
+    method: "DELETE",
+    headers: headers({ "Prefer": "return=minimal" }),
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Ad Images (Supabase Storage)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 이미지 목록 조회 (settings 테이블에 메타 저장)
+export async function getAdImages() {
+  const data = await getSetting("ad_images");
+  return data ?? []; // [{id, name, url}]
+}
+
+export async function saveAdImagesMeta(images) {
+  // [{id, name, url}] — dataUrl 제외하고 url(Storage URL)만 저장
+  await setSetting("ad_images", images);
+}
+
+// 이미지 업로드 → Storage에 올리고 public URL 반환
+export async function uploadAdImage(file, fileName) {
+  const ext = file.name.split(".").pop();
+  const path = `${fileName}.${ext}`;
+
+  // 1. 업로드
+  const uploadRes = await fetch(
+    `${SUPA_URL}/storage/v1/object/${STORAGE_BUCKET}/${encodeURIComponent(path)}`,
+    {
+      method: "POST",
+      headers: {
+        "apikey":        SUPA_KEY,
+        "Authorization": `Bearer ${SUPA_KEY}`,
+        "Content-Type":  file.type || "image/jpeg",
+        "x-upsert":      "true", // 같은 이름이면 덮어쓰기
+      },
+      body: file,
+    }
+  );
+
+  if (!uploadRes.ok) {
+    const err = await uploadRes.text();
+    throw new Error(`업로드 실패: ${err}`);
+  }
+
+  // 2. Public URL 생성
+  const publicUrl = `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${encodeURIComponent(path)}`;
+  return { url: publicUrl, path };
+}
+
+// 이미지 삭제 (Storage에서)
+export async function deleteAdImageFile(path) {
+  await fetch(
+    `${SUPA_URL}/storage/v1/object/${STORAGE_BUCKET}/${encodeURIComponent(path)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "apikey":        SUPA_KEY,
+        "Authorization": `Bearer ${SUPA_KEY}`,
+      },
+    }
+  );
+}

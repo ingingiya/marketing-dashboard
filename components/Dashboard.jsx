@@ -6,6 +6,11 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import MetaSettings from "./MetaSettings";
+import {
+  getSetting, setSetting,
+  getDeletedAds, addDeletedAd, restoreDeletedAd, restoreAllDeletedAds,
+  getAdImages, saveAdImagesMeta, uploadAdImage, deleteAdImageFile,
+} from "../lib/useSupabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팔레트 — 아이폰/토스 감성
@@ -330,23 +335,45 @@ export default function OaDashboard() {
   const [metaTab, setMetaTab] = useState("overview");
   const [campTab, setCampTab] = useState("conversion");
 
-  // 로고
+  // 로고 (로컬 유지 — 팀 공유 불필요)
   const [logo, setLogo] = useState(() => { try { return localStorage.getItem(LS_LOGO) || null; } catch { return null; } });
   const logoRef = useRef();
 
-  // 데이터
+  // 데이터 — settings/deletedAds/adImages는 Supabase 공유
   const [sheetUrl, setSheetUrl, sheetUrlLoaded] = useLocal(LS_SHEET_URL, "");
-  const [margin, setMargin] = useLocal(LS_MARGIN, 30000);
-  const [margins, setMargins] = useLocal(LS_MARGINS, DEFAULT_MARGINS);
-  const [criteria, setCriteria] = useLocal(LS_CRITERIA, DEFAULT_CRITERIA);
-  const [metaRaw, setMetaRaw] = useState([]);
+  const [margin,   setMargin]   = useState(30000);
+  const [margins,  setMargins]  = useState(DEFAULT_MARGINS);
+  const [criteria, setCriteria] = useState(DEFAULT_CRITERIA);
+  const [metaRaw,  setMetaRaw]  = useState([]);
   const [metaStatus, setMetaStatus] = useState("idle");
-  const [deletedAds, setDeletedAds] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("oa_deleted_ads") || "[]"); } catch { return []; }
-  });
-  const [adImages, setAdImages] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LS_AD_IMAGES) || "[]"); } catch { return []; }
-  });
+  const [deletedAds,  setDeletedAds]  = useState([]); // [{id, ad_name, deleted_at}]
+  const [adImages,    setAdImages]    = useState([]); // [{id, name, url, path}]
+  const [sbLoaded,    setSbLoaded]    = useState(false);
+
+  // Supabase 초기 로드
+  useEffect(() => {
+    async function loadFromSupabase() {
+      try {
+        const [sbMargin, sbMargins, sbCriteria, sbDeleted, sbImages] = await Promise.all([
+          getSetting("margin"),
+          getSetting("margins"),
+          getSetting("criteria"),
+          getDeletedAds(),
+          getAdImages(),
+        ]);
+        if (sbMargin  != null) setMargin(sbMargin);
+        if (sbMargins != null) setMargins(sbMargins);
+        if (sbCriteria != null) setCriteria(prev => ({ ...prev, ...sbCriteria }));
+        if (sbDeleted?.length) setDeletedAds(sbDeleted);
+        if (sbImages?.length)  setAdImages(sbImages);
+      } catch (e) {
+        console.error("Supabase 로드 실패:", e);
+      } finally {
+        setSbLoaded(true);
+      }
+    }
+    loadFromSupabase();
+  }, []);
 
   useEffect(() => {
     if (sheetUrlLoaded && sheetUrl) fetchSheet(sheetUrl);
@@ -368,7 +395,8 @@ export default function OaDashboard() {
   }
 
   const hasSheet = metaStatus === "ok" && metaRaw.length > 0;
-  const metaFiltered = metaRaw.filter(r => !deletedAds.includes(r.adName || r.campaign || ""));
+  const deletedNames = deletedAds.map(d => d.ad_name);
+  const metaFiltered = metaRaw.filter(r => !deletedNames.includes(r.adName || r.campaign || ""));
 
   // 집계
   const agg = hasSheet ? (() => {
@@ -760,7 +788,7 @@ export default function OaDashboard() {
                                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                         {/* 썸네일 + hover 확대 */}
                                         {thumb ? (
-                                          <ThumbPreview dataUrl={thumb.dataUrl} name={c.name} />
+                                          <ThumbPreview dataUrl={thumb.url} name={c.name} />
                                         ) : (
                                           <div style={{ width: 40, height: 40, borderRadius: 8, background: C.bg, border: `1px solid ${C.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: C.inkLt }}>📷</div>
                                         )}
@@ -1083,15 +1111,52 @@ export default function OaDashboard() {
             metaStatus={metaStatus}
             metaRaw={metaRaw}
             deletedAds={deletedAds}
-            onDeletedAdsChange={(arr) => { setDeletedAds(arr); try { localStorage.setItem("oa_deleted_ads", JSON.stringify(arr)); } catch {} }}
+            onDeleteAdd={async (adName) => {
+              await addDeletedAd(adName);
+              const updated = await getDeletedAds();
+              setDeletedAds(updated);
+            }}
+            onDeletedRestore={async (id) => {
+              await restoreDeletedAd(id);
+              setDeletedAds(prev => prev.filter(d => d.id !== id));
+            }}
+            onDeletedRestoreAll={async () => {
+              await restoreAllDeletedAds();
+              setDeletedAds([]);
+            }}
             margin={margin}
-            onMarginChange={setMargin}
+            onMarginChange={async (v) => { setMargin(v); await setSetting("margin", v); }}
             margins={margins}
-            onMarginsChange={setMargins}
+            onMarginsChange={async (v) => { setMargins(v); await setSetting("margins", v); }}
             fetchSheet={fetchSheet}
             criteria={criteria}
-            onCriteriaChange={setCriteria}
-            onAdImagesChange={(imgs) => setAdImages(imgs)}
+            onCriteriaChange={async (v) => { setCriteria(v); await setSetting("criteria", v); }}
+            adImages={adImages}
+            onAdImageUpload={async (file, name) => {
+              const { url, path } = await uploadAdImage(file, name);
+              const newImg = { id: Date.now() + Math.random(), name, url, path };
+              const next = [...adImages.filter(x => x.name !== name), newImg];
+              setAdImages(next);
+              await saveAdImagesMeta(next.map(({ id, name, url, path }) => ({ id, name, url, path })));
+              return newImg;
+            }}
+            onAdImageRename={async (id, newName) => {
+              const next = adImages.map(x => x.id === id ? { ...x, name: newName } : x);
+              setAdImages(next);
+              await saveAdImagesMeta(next.map(({ id, name, url, path }) => ({ id, name, url, path })));
+            }}
+            onAdImageRemove={async (id) => {
+              const img = adImages.find(x => x.id === id);
+              if (img?.path) await deleteAdImageFile(img.path);
+              const next = adImages.filter(x => x.id !== id);
+              setAdImages(next);
+              await saveAdImagesMeta(next.map(({ id, name, url, path }) => ({ id, name, url, path })));
+            }}
+            onAdImagesRemoveAll={async () => {
+              await Promise.all(adImages.filter(x => x.path).map(x => deleteAdImageFile(x.path)));
+              setAdImages([]);
+              await saveAdImagesMeta([]);
+            }}
           />
         )}
       </main>

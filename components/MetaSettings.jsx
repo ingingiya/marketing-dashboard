@@ -299,10 +299,10 @@ export default function MetaSettings({
   const [editingMargin, setEditingMargin] = useState(null);
   const [newKeyword,    setNewKeyword]    = useState("");
   const [newMarginVal,  setNewMarginVal]  = useState("");
-  const [criteria,      setCriteriaState] = useState(() => criteriaProp || loadCriteria());
-  const [criteriaInput, setCriteriaInput] = useState(() => criteriaProp || loadCriteria());
+  const [criteria, setCriteriaState] = useState(criteriaProp || DEFAULT_CRITERIA);
+  const [criteriaInput, setCriteriaInput] = useState(criteriaProp || DEFAULT_CRITERIA);
   const [toast,         setToast]         = useState("");
-  const [logo,          setLogo]          = useState(() => loadLogo());
+  const [logo, setLogo] = useState(null);
   const [uploading,     setUploading]     = useState(false);
   const logoRef = useRef();
   const imgRef  = useRef();

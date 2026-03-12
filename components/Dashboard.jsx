@@ -10,7 +10,7 @@ import {
   getSetting, setSetting,
   getDeletedAds, addDeletedAd, restoreDeletedAd, restoreAllDeletedAds,
   getAdImages, saveAdImagesMeta, uploadAdImage, deleteAdImageFile,
-} from "../Lib/useSupabase";
+} from "../lib/useSupabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팔레트 — 아이폰/토스 감성
@@ -351,7 +351,7 @@ export default function OaDashboard() {
   const [sheetTeam3, setSheetTeam3, team3Loaded] = useLocal(LS_SHEET_TEAM3, "");
   const [sheetTeam4, setSheetTeam4, team4Loaded] = useLocal(LS_SHEET_TEAM4, "");
   const [teamNames,  setTeamNames,  teamNamesLoaded] = useLocal(LS_TEAM_NAMES, ["계절가전","건강가전","욕실가전","인테리어"]);
-  const [activeTeam, setActiveTeam] = useState(0);
+  const [activeTeam, setActiveTeam] = useState(1);
   const [margin,   setMargin]   = useState(30000);
   const [margins,  setMargins]  = useState(DEFAULT_MARGINS);
   const [criteria, setCriteria] = useState(DEFAULT_CRITERIA);
@@ -557,7 +557,7 @@ export default function OaDashboard() {
         {/* 팀 선택 */}
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: C.inkLt, fontWeight: 600, marginRight: 4 }}>팀</span>
-          {[{id:0,label:"전체"},{id:1,label:teamNames[0]},{id:2,label:teamNames[1]},{id:3,label:teamNames[2]},{id:4,label:teamNames[3]}].map(t=>(
+          {[{id:1,label:teamNames[0]},{id:2,label:teamNames[1]},{id:3,label:teamNames[2]},{id:4,label:teamNames[3]}].map(t=>(
             <button key={t.id} onClick={()=>setActiveTeam(t.id)} style={{
               padding:"5px 14px",borderRadius:20,border:`1px solid ${activeTeam===t.id?C.accent:C.border}`,
               background:activeTeam===t.id?C.accent:C.white,

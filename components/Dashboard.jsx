@@ -10,7 +10,7 @@ import {
   getSetting, setSetting,
   getDeletedAds, addDeletedAd, restoreDeletedAd, restoreAllDeletedAds,
   getAdImages, saveAdImagesMeta, uploadAdImage, deleteAdImageFile,
-} from "../Lib/useSupabase";
+} from "../lib/useSupabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팔레트 — 아이폰/토스 감성
@@ -54,6 +54,11 @@ const DEFAULT_CRITERIA = {
 };
 
 const LS_SHEET_URL  = "oa_sheet_url";
+const LS_SHEET_TEAM1 = "oa_sheet_team1";
+const LS_SHEET_TEAM2 = "oa_sheet_team2";
+const LS_SHEET_TEAM3 = "oa_sheet_team3";
+const LS_SHEET_TEAM4 = "oa_sheet_team4";
+const LS_TEAM_NAMES  = "oa_team_names";
 const LS_MARGIN     = "oa_margin_v7";
 const LS_MARGINS    = "oa_margins_v7";
 const LS_CRITERIA   = "oa_ad_criteria_v1";
@@ -336,14 +341,17 @@ export default function OaDashboard() {
   const [campTab, setCampTab] = useState("conversion");
 
   // 로고 (로컬 유지 — 팀 공유 불필요)
-  const [logo, setLogo] = useState(null);
-  useEffect(() => {
-    try { setLogo(localStorage.getItem(LS_LOGO) || null); } catch {}
-  }, []);
+  const [logo, setLogo] = useState(() => { try { return localStorage.getItem(LS_LOGO) || null; } catch { return null; } });
   const logoRef = useRef();
 
   // 데이터 — settings/deletedAds/adImages는 Supabase 공유
   const [sheetUrl, setSheetUrl, sheetUrlLoaded] = useLocal(LS_SHEET_URL, "");
+  const [sheetTeam1, setSheetTeam1, team1Loaded] = useLocal(LS_SHEET_TEAM1, "");
+  const [sheetTeam2, setSheetTeam2, team2Loaded] = useLocal(LS_SHEET_TEAM2, "");
+  const [sheetTeam3, setSheetTeam3, team3Loaded] = useLocal(LS_SHEET_TEAM3, "");
+  const [sheetTeam4, setSheetTeam4, team4Loaded] = useLocal(LS_SHEET_TEAM4, "");
+  const [teamNames,  setTeamNames,  teamNamesLoaded] = useLocal(LS_TEAM_NAMES, ["계절가전","건강가전","욕실가전","인테리어"]);
+  const [activeTeam, setActiveTeam] = useState(0);
   const [margin,   setMargin]   = useState(30000);
   const [margins,  setMargins]  = useState(DEFAULT_MARGINS);
   const [criteria, setCriteria] = useState(DEFAULT_CRITERIA);
@@ -381,6 +389,14 @@ export default function OaDashboard() {
   useEffect(() => {
     if (sheetUrlLoaded && sheetUrl) fetchSheet(sheetUrl);
   }, [sheetUrl, sheetUrlLoaded]);
+
+  // 팀 전환 시 해당 시트 로드
+  useEffect(() => {
+    const urls = ["", sheetTeam1, sheetTeam2, sheetTeam3, sheetTeam4];
+    const url = activeTeam === 0 ? sheetUrl : urls[activeTeam];
+    if (url) fetchSheet(url);
+    else { setMetaRaw([]); setMetaStatus("idle"); }
+  }, [activeTeam]);
 
   async function fetchSheet(url) {
     if (!url) return;
@@ -537,6 +553,19 @@ export default function OaDashboard() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* 팀 선택 */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: C.inkLt, fontWeight: 600, marginRight: 4 }}>팀</span>
+          {[{id:0,label:"전체"},{id:1,label:teamNames[0]},{id:2,label:teamNames[1]},{id:3,label:teamNames[2]},{id:4,label:teamNames[3]}].map(t=>(
+            <button key={t.id} onClick={()=>setActiveTeam(t.id)} style={{
+              padding:"5px 14px",borderRadius:20,border:`1px solid ${activeTeam===t.id?C.accent:C.border}`,
+              background:activeTeam===t.id?C.accent:C.white,
+              color:activeTeam===t.id?C.white:C.inkMid,
+              fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:FONT,transition:"all 0.15s"
+            }}>{t.label}</button>
+          ))}
+        </div>
 
         {/* 광고 알림 배너 */}
         {(cutAds.length > 0 || holdAds.length > 0) && (
@@ -1160,6 +1189,12 @@ export default function OaDashboard() {
               setAdImages([]);
               await saveAdImagesMeta([]);
             }}
+            teamNames={teamNames}
+            onTeamNamesChange={(v) => { setTeamNames(v); try { localStorage.setItem(LS_TEAM_NAMES, JSON.stringify(v)); } catch {} }}
+            sheetTeam1={sheetTeam1} onSheetTeam1Change={setSheetTeam1}
+            sheetTeam2={sheetTeam2} onSheetTeam2Change={setSheetTeam2}
+            sheetTeam3={sheetTeam3} onSheetTeam3Change={setSheetTeam3}
+            sheetTeam4={sheetTeam4} onSheetTeam4Change={setSheetTeam4}
           />
         )}
       </main>

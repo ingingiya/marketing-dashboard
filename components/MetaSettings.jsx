@@ -292,6 +292,12 @@ export default function MetaSettings({
   onAdImageRename,     // (id, newName) => Promise
   onAdImageRemove,     // (id) => Promise
   onAdImagesRemoveAll, // () => Promise
+  teamNames = ["계절가전","건강가전","욕실가전","인테리어"],
+  onTeamNamesChange,
+  sheetTeam1 = "", onSheetTeam1Change,
+  sheetTeam2 = "", onSheetTeam2Change,
+  sheetTeam3 = "", onSheetTeam3Change,
+  sheetTeam4 = "", onSheetTeam4Change,
 }) {
   const [sheetInput,    setSheetInput]    = useState(sheetUrl);
   const [sheetEditing,  setSheetEditing]  = useState(false);
@@ -299,10 +305,10 @@ export default function MetaSettings({
   const [editingMargin, setEditingMargin] = useState(null);
   const [newKeyword,    setNewKeyword]    = useState("");
   const [newMarginVal,  setNewMarginVal]  = useState("");
-  const [criteria, setCriteriaState] = useState(criteriaProp || DEFAULT_CRITERIA);
-  const [criteriaInput, setCriteriaInput] = useState(criteriaProp || DEFAULT_CRITERIA);
+  const [criteria,      setCriteriaState] = useState(() => criteriaProp || loadCriteria());
+  const [criteriaInput, setCriteriaInput] = useState(() => criteriaProp || loadCriteria());
   const [toast,         setToast]         = useState("");
-  const [logo, setLogo] = useState(null);
+  const [logo,          setLogo]          = useState(() => loadLogo());
   const [uploading,     setUploading]     = useState(false);
   const logoRef = useRef();
   const imgRef  = useRef();
@@ -520,6 +526,47 @@ export default function MetaSettings({
             </div>
           </div>
         )}
+      </Card>
+
+      {/* ── 팀별 시트 연결 ────────────────────────────── */}
+      <Card>
+        <SectionTitle title="팀별 시트 연결" sub="팀마다 다른 시트 탭(gid)을 연결하세요" />
+        {[
+          { label: teamNames[0], url: sheetTeam1, onChange: onSheetTeam1Change, idx: 0 },
+          { label: teamNames[1], url: sheetTeam2, onChange: onSheetTeam2Change, idx: 1 },
+          { label: teamNames[2], url: sheetTeam3, onChange: onSheetTeam3Change, idx: 2 },
+          { label: teamNames[3], url: sheetTeam4, onChange: onSheetTeam4Change, idx: 3 },
+        ].map((team, i) => (
+          <div key={i} style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <input
+                value={teamNames[team.idx]}
+                onChange={e => {
+                  const next = [...teamNames];
+                  next[team.idx] = e.target.value;
+                  onTeamNamesChange?.(next);
+                }}
+                style={{ fontSize: 12, fontWeight: 700, color: C.ink, background: "transparent", border: "none",
+                  borderBottom: `1px dashed ${C.border}`, outline: "none", width: 60, padding: "2px 4px" }}
+                placeholder={`팀${i+1}`}
+              />
+              <span style={{ fontSize: 10, color: C.inkLt }}>시트 URL</span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={team.url}
+                onChange={e => team.onChange?.(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/...#gid=..."
+                style={{ flex: 1, fontSize: 11, padding: "9px 12px", borderRadius: 10,
+                  border: `1px solid ${C.border}`, outline: "none", fontFamily: "inherit", color: C.ink }}
+              />
+            </div>
+          </div>
+        ))}
+        <InfoBadge>
+          각 팀 시트 탭을 열고 URL 끝의 #gid=숫자 포함해서 붙여넣기<br/>
+          예: .../spreadsheets/d/ID/edit#gid=12345678
+        </InfoBadge>
       </Card>
 
       {/* ── 2. 마진 설정 ─────────────────────────────── */}

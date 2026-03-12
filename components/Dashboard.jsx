@@ -341,7 +341,8 @@ export default function OaDashboard() {
   const [campTab, setCampTab] = useState("conversion");
 
   // 로고 (로컬 유지 — 팀 공유 불필요)
-  const [logo, setLogo] = useState(() => { try { return localStorage.getItem(LS_LOGO) || null; } catch { return null; } });
+  const [logo, setLogo] = useState(null);
+  useEffect(() => { try { setLogo(localStorage.getItem(LS_LOGO) || null); } catch {} }, []);
   const logoRef = useRef();
 
   // 데이터 — settings/deletedAds/adImages는 Supabase 공유

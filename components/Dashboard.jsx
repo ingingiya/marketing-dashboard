@@ -10,7 +10,7 @@ import {
   getSetting, setSetting,
   getDeletedAds, addDeletedAd, restoreDeletedAd, restoreAllDeletedAds,
   getAdImages, saveAdImagesMeta, uploadAdImage, deleteAdImageFile,
-} from "../lib/useSupabase";
+} from "../Lib/useSupabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팔레트 — 아이폰/토스 감성

@@ -472,36 +472,47 @@ export default function MetaSettings({
         </div>
       </Card>
 
-      {/* ── 1. 구글 시트 연결 ────────────────────────── */}
+      {/* ── 1. 팀별 시트 연결 ────────────────────────────── */}
       <Card>
-        <SectionTitle title="구글 시트" sub="메타 광고관리자 데이터 소스" />
-
-        {hasSheet && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <div style={{ flex: 1, fontSize: 12, color: C.inkMid, background: C.bg, padding: "9px 12px", borderRadius: 10, wordBreak: "break-all", border: `1px solid ${C.border}` }}>
-              {sheetUrl}
+        <SectionTitle title="팀별 시트 연결" sub="팀마다 다른 시트 탭(gid)을 연결하세요" />
+        {[
+          { label: teamNames[0], url: sheetTeam1, onChange: onSheetTeam1Change, fetch: ()=>fetchSheet?.(sheetTeam1), idx: 0 },
+          { label: teamNames[1], url: sheetTeam2, onChange: onSheetTeam2Change, fetch: ()=>fetchSheet?.(sheetTeam2), idx: 1 },
+          { label: teamNames[2], url: sheetTeam3, onChange: onSheetTeam3Change, fetch: ()=>fetchSheet?.(sheetTeam3), idx: 2 },
+          { label: teamNames[3], url: sheetTeam4, onChange: onSheetTeam4Change, fetch: ()=>fetchSheet?.(sheetTeam4), idx: 3 },
+        ].map((team, i) => (
+          <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < 3 ? `1px solid ${C.border}` : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <input
+                value={teamNames[team.idx]}
+                onChange={e => {
+                  const next = [...teamNames];
+                  next[team.idx] = e.target.value;
+                  onTeamNamesChange?.(next);
+                }}
+                style={{ fontSize: 12, fontWeight: 700, color: C.ink, background: "transparent", border: "none",
+                  borderBottom: `1px dashed ${C.border}`, outline: "none", width: 80, padding: "2px 4px" }}
+                placeholder={`팀${i+1}`}
+              />
             </div>
-            <Btn variant="neutral" small onClick={() => { setSheetInput(sheetUrl); setSheetEditing(true); }}>변경</Btn>
-            <Btn variant="sage" small onClick={() => fetchSheet?.(sheetUrl)}>새로고침</Btn>
-          </div>
-        )}
-
-        {(!sheetUrl || sheetEditing) && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <InfoBadge>
-              1. 메타 광고관리자 → 보고서 → 구글 스프레드시트로 내보내기<br />
-              2. 시트 공유 → "링크 있는 모든 사용자" → 뷰어<br />
-              3. URL 복사 후 아래에 붙여넣기
-            </InfoBadge>
-            <Inp value={sheetInput} onChange={setSheetInput} placeholder="https://docs.google.com/spreadsheets/d/..." />
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn onClick={saveSheet} style={{ flex: 1 }}>저장 및 연결</Btn>
-              {sheetUrl && <Btn variant="neutral" onClick={() => setSheetEditing(false)}>취소</Btn>}
+              <input
+                value={team.url}
+                onChange={e => team.onChange?.(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/...#gid=..."
+                style={{ flex: 1, fontSize: 11, padding: "9px 12px", borderRadius: 10,
+                  border: `1px solid ${C.border}`, outline: "none", fontFamily: "inherit", color: C.ink }}
+              />
+              {team.url && <Btn variant="sage" small onClick={team.fetch}>새로고침</Btn>}
             </div>
           </div>
-        )}
+        ))}
+        <InfoBadge>
+          각 팀 시트 탭을 열고 URL 끝의 #gid=숫자 포함해서 붙여넣기<br/>
+          예: .../spreadsheets/d/ID/edit#gid=12345678
+        </InfoBadge>
 
-        {deletedAds.length > 0 && !sheetEditing && (
+        {deletedAds.length > 0 && (
           <div style={{ marginTop: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.inkMid }}>숨긴 광고 ({deletedAds.length})</div>
@@ -526,47 +537,6 @@ export default function MetaSettings({
             </div>
           </div>
         )}
-      </Card>
-
-      {/* ── 팀별 시트 연결 ────────────────────────────── */}
-      <Card>
-        <SectionTitle title="팀별 시트 연결" sub="팀마다 다른 시트 탭(gid)을 연결하세요" />
-        {[
-          { label: teamNames[0], url: sheetTeam1, onChange: onSheetTeam1Change, idx: 0 },
-          { label: teamNames[1], url: sheetTeam2, onChange: onSheetTeam2Change, idx: 1 },
-          { label: teamNames[2], url: sheetTeam3, onChange: onSheetTeam3Change, idx: 2 },
-          { label: teamNames[3], url: sheetTeam4, onChange: onSheetTeam4Change, idx: 3 },
-        ].map((team, i) => (
-          <div key={i} style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <input
-                value={teamNames[team.idx]}
-                onChange={e => {
-                  const next = [...teamNames];
-                  next[team.idx] = e.target.value;
-                  onTeamNamesChange?.(next);
-                }}
-                style={{ fontSize: 12, fontWeight: 700, color: C.ink, background: "transparent", border: "none",
-                  borderBottom: `1px dashed ${C.border}`, outline: "none", width: 60, padding: "2px 4px" }}
-                placeholder={`팀${i+1}`}
-              />
-              <span style={{ fontSize: 10, color: C.inkLt }}>시트 URL</span>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={team.url}
-                onChange={e => team.onChange?.(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/...#gid=..."
-                style={{ flex: 1, fontSize: 11, padding: "9px 12px", borderRadius: 10,
-                  border: `1px solid ${C.border}`, outline: "none", fontFamily: "inherit", color: C.ink }}
-              />
-            </div>
-          </div>
-        ))}
-        <InfoBadge>
-          각 팀 시트 탭을 열고 URL 끝의 #gid=숫자 포함해서 붙여넣기<br/>
-          예: .../spreadsheets/d/ID/edit#gid=12345678
-        </InfoBadge>
       </Card>
 
       {/* ── 2. 마진 설정 ─────────────────────────────── */}

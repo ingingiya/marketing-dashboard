@@ -428,50 +428,6 @@ export default function MetaSettings({
         </div>
       )}
 
-      {/* ── 헤더 (로고 업로드 포함) ───────────────────── */}
-      <Card style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 20px" }}>
-        {/* 로고 영역 */}
-        <div
-          onClick={() => logoRef.current?.click()}
-          style={{
-            width: 48, height: 48, borderRadius: 12,
-            border: `1.5px dashed ${logo ? "transparent" : C.border}`,
-            background: logo ? "transparent" : C.bg,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", overflow: "hidden", flexShrink: 0,
-            transition: "border-color 0.15s",
-          }}
-          title="로고 업로드"
-        >
-          {logo
-            ? <img src={logo} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-            : <span style={{ fontSize: 20 }}>＋</span>
-          }
-        </div>
-        <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} />
-
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em" }}>메타광고 설정</div>
-          <div style={{ fontSize: 12, color: C.inkLt, marginTop: 2 }}>데이터 소스 · 마진 · 판단 기준</div>
-        </div>
-
-        {logo && (
-          <button onClick={removeLogo} style={{
-            background: "none", border: "none", cursor: "pointer",
-            fontSize: 11, color: C.inkLt, padding: "4px 8px"
-          }}>
-            로고 삭제
-          </button>
-        )}
-        <div style={{
-          fontSize: 11, color: statusConfig.color,
-          background: statusConfig.bg, borderRadius: 100,
-          padding: "5px 12px", fontWeight: 600, whiteSpace: "nowrap"
-        }}>
-          {statusConfig.icon} {statusConfig.text}
-        </div>
-      </Card>
-
       {/* ── 1. 팀별 시트 연결 ────────────────────────────── */}
       <Card>
         <SectionTitle title="팀별 시트 연결" sub="팀마다 다른 시트 탭(gid)을 연결하세요" />

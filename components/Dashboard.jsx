@@ -10,7 +10,7 @@ import {
   getSetting, setSetting,
   getDeletedAds, addDeletedAd, restoreDeletedAd, restoreAllDeletedAds,
   getAdImages, saveAdImagesMeta, uploadAdImage, deleteAdImageFile,
-} from "../Lib/useSupabase";
+} from "../lib/useSupabase";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팔레트 — 아이폰/토스 감성
@@ -351,7 +351,7 @@ export default function OaDashboard() {
   const [sheetTeam3, setSheetTeam3, team3Loaded] = useLocal(LS_SHEET_TEAM3, "");
   const [sheetTeam4, setSheetTeam4, team4Loaded] = useLocal(LS_SHEET_TEAM4, "");
   const [teamNames,  setTeamNames,  teamNamesLoaded] = useLocal(LS_TEAM_NAMES, ["계절가전","건강가전","욕실가전","인테리어"]);
-  const [activeTeam, setActiveTeam] = useState(1);
+  const [activeTeam, setActiveTeam] = useState(0);
   const [margin,   setMargin]   = useState(30000);
   const [margins,  setMargins]  = useState(DEFAULT_MARGINS);
   const [criteria, setCriteria] = useState(DEFAULT_CRITERIA);
@@ -365,18 +365,29 @@ export default function OaDashboard() {
   useEffect(() => {
     async function loadFromSupabase() {
       try {
-        const [sbMargin, sbMargins, sbCriteria, sbDeleted, sbImages] = await Promise.all([
+        const [sbMargin, sbMargins, sbCriteria, sbDeleted, sbImages,
+               sbTeam1, sbTeam2, sbTeam3, sbTeam4, sbTeamNames] = await Promise.all([
           getSetting("margin"),
           getSetting("margins"),
           getSetting("criteria"),
           getDeletedAds(),
           getAdImages(),
+          getSetting("sheet_team1"),
+          getSetting("sheet_team2"),
+          getSetting("sheet_team3"),
+          getSetting("sheet_team4"),
+          getSetting("team_names"),
         ]);
         if (sbMargin  != null) setMargin(sbMargin);
         if (sbMargins != null) setMargins(sbMargins);
         if (sbCriteria != null) setCriteria(prev => ({ ...prev, ...sbCriteria }));
         if (sbDeleted?.length) setDeletedAds(sbDeleted);
         if (sbImages?.length)  setAdImages(sbImages);
+        if (sbTeam1) setSheetTeam1(sbTeam1);
+        if (sbTeam2) setSheetTeam2(sbTeam2);
+        if (sbTeam3) setSheetTeam3(sbTeam3);
+        if (sbTeam4) setSheetTeam4(sbTeam4);
+        if (sbTeamNames?.length) setTeamNames(sbTeamNames);
       } catch (e) {
         console.error("Supabase 로드 실패:", e);
       } finally {
@@ -557,7 +568,7 @@ export default function OaDashboard() {
         {/* 팀 선택 */}
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: C.inkLt, fontWeight: 600, marginRight: 4 }}>팀</span>
-          {[{id:1,label:teamNames[0]},{id:2,label:teamNames[1]},{id:3,label:teamNames[2]},{id:4,label:teamNames[3]}].map(t=>(
+          {[{id:0,label:"전체"},{id:1,label:teamNames[0]},{id:2,label:teamNames[1]},{id:3,label:teamNames[2]},{id:4,label:teamNames[3]}].map(t=>(
             <button key={t.id} onClick={()=>setActiveTeam(t.id)} style={{
               padding:"5px 14px",borderRadius:20,border:`1px solid ${activeTeam===t.id?C.accent:C.border}`,
               background:activeTeam===t.id?C.accent:C.white,
@@ -1190,11 +1201,11 @@ export default function OaDashboard() {
               await saveAdImagesMeta([]);
             }}
             teamNames={teamNames}
-            onTeamNamesChange={(v) => { setTeamNames(v); try { localStorage.setItem(LS_TEAM_NAMES, JSON.stringify(v)); } catch {} }}
-            sheetTeam1={sheetTeam1} onSheetTeam1Change={setSheetTeam1}
-            sheetTeam2={sheetTeam2} onSheetTeam2Change={setSheetTeam2}
-            sheetTeam3={sheetTeam3} onSheetTeam3Change={setSheetTeam3}
-            sheetTeam4={sheetTeam4} onSheetTeam4Change={setSheetTeam4}
+            onTeamNamesChange={(v) => { setTeamNames(v); setSetting("team_names", v); }}
+            sheetTeam1={sheetTeam1} onSheetTeam1Change={v=>{setSheetTeam1(v);setSetting("sheet_team1",v);}}
+            sheetTeam2={sheetTeam2} onSheetTeam2Change={v=>{setSheetTeam2(v);setSetting("sheet_team2",v);}}
+            sheetTeam3={sheetTeam3} onSheetTeam3Change={v=>{setSheetTeam3(v);setSetting("sheet_team3",v);}}
+            sheetTeam4={sheetTeam4} onSheetTeam4Change={v=>{setSheetTeam4(v);setSetting("sheet_team4",v);}}
           />
         )}
       </main>
